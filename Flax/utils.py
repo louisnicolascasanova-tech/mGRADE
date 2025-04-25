@@ -13,6 +13,147 @@ import pandas as pd
 PX = 1/plt.rcParams['figure.dpi']
 
 
+@jax.custom_jvp
+def gr_than(x, thr):
+    """ Thresholding function for spiking neurons. """
+    return (x > thr).astype(jnp.float32)
+
+@gr_than.defjvp
+def gr_jvp(primals, tangents):
+    """ Surrogate gradient function for thresholding. """
+    x, thr = primals
+    x_dot, y_dot = tangents
+    primal_out = gr_than(x, thr)
+    tangent_out = x_dot / (10 * jnp.absolute(x - thr) + 1)**2
+    return primal_out, tangent_out
+
+@jax.jit
+def threshold(x,thr):
+    return gr_than(x,thr)
+
+@jax.jit
+def scaled_shifted_sigmoid(x, scale, center):
+    """
+    A scaled and shifted version of the sigmoid function.
+    Args:
+        x: Input array.
+        scale: Scaling factor for the sigmoid output.
+        shift: Shift applied to the sigmoid output.
+    Returns:
+        Scaled and shifted sigmoid output.
+    """
+    s=scale
+    c=center
+    return jax.nn.sigmoid((x-c)*s)
+
+@jax.jit
+def scaled_shifted_tanh(x, scale, center):
+    """
+    A scaled and shifted version of the tanh function.
+    Args:
+        x: Input array.
+        scale: Scaling factor for the tanh output.
+        shift: Shift applied to the tanh output.
+    Returns:
+        Scaled and shifted tanh output.
+    """
+    s=scale
+    c=center
+    return jax.nn.tanh((x-c)*s)
+
+
+def create_cifar_gs_classification_dataset(bsz=128):
+    print("[*] Generating CIFAR-10 Classification Dataset")
+    # Constants
+    SEQ_LENGTH, N_CLASSES, IN_DIM = 32 * 32, 10, 1
+    tf = transforms.Compose(
+        [
+            transforms.Grayscale(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=122.6 / 255.0, std=61.0 / 255.0),
+            transforms.Lambda(lambda x: x.view(1, SEQ_LENGTH).t()),
+        ]
+    )
+
+    train = torchvision.datasets.CIFAR10(
+        "./data", train=True, download=True, transform=tf
+    )
+    test = torchvision.datasets.CIFAR10(
+        "./data", train=False, download=True, transform=tf
+    )
+
+    # Split the training dataset into train and validation sets
+    train_size = int((1 - 5/6) * len(train))
+    val_size = len(train) - train_size
+    train, val = torch.utils.data.random_split(train, [train_size, val_size])
+
+    def custom_collate_fn(batch):
+        transposed_data = list(zip(*batch))
+        labels = np.array(transposed_data[1])
+        images = np.array(transposed_data[0])
+
+        return images, labels 
+    
+    # Return data loaders, with the provided batch size
+    trainloader = torch.utils.data.DataLoader(
+        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+    )
+    valloader = torch.utils.data.DataLoader(
+        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+    )
+    testloader = torch.utils.data.DataLoader(
+        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+    )
+
+    return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+
+def create_cifar_classification_dataset(bsz=128):
+    print("[*] Generating CIFAR-10 Classification Dataset")
+    # Constants
+    SEQ_LENGTH, N_CLASSES, IN_DIM = 32 * 32, 10, 3
+    tf = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            transforms.Normalize(
+                (0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)
+            ),
+            transforms.Lambda(lambda x: x.view(IN_DIM, SEQ_LENGTH).t()),
+        ]
+    )
+
+    train = torchvision.datasets.CIFAR10(
+        "./data", train=True, download=True, transform=tf
+    )
+    test = torchvision.datasets.CIFAR10(
+        "./data", train=False, download=True, transform=tf
+    )
+
+    # Split the training dataset into train and validation sets
+    train_size = int((1 - 5/6) * len(train))
+    val_size = len(train) - train_size
+    train, val = torch.utils.data.random_split(train, [train_size, val_size])
+
+    def custom_collate_fn(batch):
+        transposed_data = list(zip(*batch))
+        labels = np.array(transposed_data[1])
+        images = np.array(transposed_data[0])
+
+        return images, labels   
+
+    # Return data loaders, with the provided batch size
+    trainloader = torch.utils.data.DataLoader(
+        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+    )
+    valloader = torch.utils.data.DataLoader(
+        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+    )
+    testloader = torch.utils.data.DataLoader(
+        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+    )
+
+    return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+
+
 
 # WARNING: this code is from QSSM project and won't be updated 
 def create_mnist_classification_dataset(bsz=128, root="./data", version="sequential"):
@@ -67,6 +208,57 @@ def create_mnist_classification_dataset(bsz=128, root="./data", version="sequent
 def g(x):
     return jnp.where(x > 0, x+0.5, jax.nn.sigmoid(x))
 
+def identity_weight_init():
+    def init(key, shape, dtype=jnp.float32):
+        w = jnp.eye(shape[0], shape[1], dtype=dtype) * 0.9
+        w = w.at[-1, :].set(1.0)
+        return w
+    return init
+
+def map_nested_fn(fn):
+    """Recursively apply `fn to the key-value pairs of a nested dict / pytree."""
+
+    def map_fn(nested_dict):
+        return {
+            k: (map_fn(v) if hasattr(v, "keys") else fn(k, v))
+            for k, v in nested_dict.items()
+        }
+
+    return map_fn
+
+
+def bimodal_gaussian(key, size, mean1, mean2, std1, std2, weight1=0.5):
+    """
+    Draw samples from a bimodal Gaussian distribution.
+    
+    Args:
+        key: JAX random key.
+        size: Number of samples to draw.
+        mean1: Mean of the first Gaussian.
+        mean2: Mean of the second Gaussian.
+        std1: Standard deviation of the first Gaussian.
+        std2: Standard deviation of the second Gaussian.
+        weight1: Weight of the first Gaussian (between 0 and 1).
+                 The second Gaussian will have weight (1 - weight1).
+    
+    Returns:
+        Samples from the bimodal Gaussian distribution.
+    """
+    # Split the random key
+    key1, key2 = jax.random.split(key)
+    
+    # Draw samples from two Gaussian distributions
+    samples1 = jax.random.normal(key1, shape=size) * std1 + mean1
+    samples2 = jax.random.normal(key2, shape=size) * std2 + mean2
+    
+    # Randomly choose between the two distributions based on the weights
+    mix_key = jax.random.uniform(key, shape=size)
+    mask = mix_key < weight1  # True for samples from the first Gaussian
+    
+    # Combine the samples
+    samples = jnp.where(mask, samples1, samples2)
+    return samples
+
 def plot_dynamics(model, params, batch_inputs, batch_labels, dataset_version='sequential',
                     id_sample=0, nb_inputs_to_plot=5, nb_components_to_plot=5, model_type='srn', variable_to_plot='h', zoom=True):
     
@@ -75,7 +267,7 @@ def plot_dynamics(model, params, batch_inputs, batch_labels, dataset_version='se
         'gru': {'h': 0, 'z': 1, 'r': 2},
         'mgu': {'h': 0, 'f': 1},
         'mingru': {'h': 0, 'z': 1, 'z_preact': 2},
-        'mingru_heinsen': {'h': 0, 'z': 1, 'z_preact': 1, 'h_tilde': 2, 'h_tilde_preact': 2},
+        'mingru_heinsen': {'h': 0, 'z': 1, 'z_preact': 1, 'h_tilde': 2, 'h_tilde_preact': 2, 'h_preact': 3},
     }
     
     # check if params has the key 'params' or not
@@ -174,7 +366,7 @@ def plot_dynamics(model, params, batch_inputs, batch_labels, dataset_version='se
     plt.tight_layout()
     plt.show()
 
-def plot_loss_and_acc(train_losses, val_losses, train_accuracies, val_accuracies):
+def plot_loss_and_acc(train_losses, val_losses, train_accuracies, val_accuracies, offset=4):
     '''
     Plot the loss and accuracy of the model during training and validation
     # ax[0] entire loss - ax[0] entire accuracy
@@ -182,7 +374,6 @@ def plot_loss_and_acc(train_losses, val_losses, train_accuracies, val_accuracies
     '''
 
     t = np.arange(len(val_losses))
-    offset = 20
     fig, ax = plt.subplots(1, 2, figsize=(1200*PX, 600*PX))
 
     ax[0].plot(t, train_losses, label='train')
