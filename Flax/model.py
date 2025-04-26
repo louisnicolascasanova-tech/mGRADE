@@ -113,10 +113,7 @@ class HeinsenMinGRULayer(nn.Module):
         
         vj_heinsen_update = jax.vmap(jax.jit(heinsen_update), in_axes=(1, 1), out_axes=1)
 
-        # Define trainable time constants
-        lower_bound = 1.0
-        upper_bound = 1.5*self.timedecay_mean[0]
-
+        # Define  time constants
         
         # time_constants = self.param(
         #     'time_constants',
@@ -124,16 +121,24 @@ class HeinsenMinGRULayer(nn.Module):
         #     (self.hidden_size,)
         # )
 
-        time_constants = jax.random.uniform(self.key, (self.hidden_size,), minval=self.timedecay_mean[1], maxval=self.timedecay_mean[0])
-        # time_constants = bimodal_gaussian(key, (self.hidden_size,), self.timedecay_mean[0], self.timedecay_mean[1], 2/3*self.timedecay_mean[0], 2/3*self.timedecay_mean[1], weight1=0.5)
+        # time_constants = jax.random.uniform(self.key, (self.hidden_size,), minval=self.timedecay_mean[1], maxval=self.timedecay_mean[0])
 
-        # Ensure time constants are positive
-        time_constants=jnp.abs(time_constants)
-        # time_constants = jax.nn.softplus(time_constants)
-        # time_constants = jnp.clip(time_constants, lower_bound, upper_bound)
+        if self.decay:
+            time_constants_gate = self.variable(
+                'Time_constants_gate',
+                lambda rng, shape: jnp.abs(jax.random.uniform(self.key, (self.hidden_size,), minval=self.timedecay_mean[1], maxval=self.timedecay_mean[0])),
+                (self.hidden_size,)
+            )
+            # ADD TRAINABILITY SWITCH
+            jax.lax.stop_gradient(time_constants_gate)
 
-        # Generate decay kernels
-        decay_kernels = exponential_decay_kernel(time_constants, 50)
+            # TODO: Add trainability switch (maybe in hp dictionary or something), add time constants for candidate
+            # lower_bound = 1.0
+            # upper_bound = 1.5*self.timedecay_mean[0]
+            # time_constants = jnp.clip(time_constants, lower_bound, upper_bound)
+
+            # Generate decay kernels
+            decay_kernels_gate = exponential_decay_kernel(time_constants_gate, 50)
 
         def update(x):
             '''
@@ -149,11 +154,10 @@ class HeinsenMinGRULayer(nn.Module):
                 z_preact = jax.vmap(
                     lambda z_, k: jax.scipy.signal.convolve(z_, k, mode='same'),
                     in_axes=(1, 0), out_axes=1
-                )(z_preact, decay_kernels)
+                )(z_preact, decay_kernels_gate)
 
             h_new = vj_heinsen_update(z_preact, h_tilde_preact) # h_new: (784, 64)
             if self.hidden_nonlinearity is not None:
-                # print(self.hidden_nonlinearity, " being applied!")
                 h_new = self.hidden_nonlinearity(h_new)
             return (h_new, z_preact, h_tilde_preact)
         
@@ -189,34 +193,6 @@ class RNNBackbone(nn.Module):
         return state_hist, out
     
 BatchRNN = nn.vmap(RNNBackbone, in_axes=0, out_axes=0, variable_axes={'params': None}, split_rngs={'params': False})
-
-
-# class RNNBackboneFirstLayer(nn.Module):
-#     hidden_size: int
-#     output_size: int
-#     n_layers: int
-#     decay: bool
-#     timedecay_mean: Sequence[float]
-#     recurrent_layer: nn.Module = HeinsenMinGRULayer
-
-#     @nn.compact
-#     def __call__(self, x):
-#         key = jax.random.PRNGKey(self.seed)
-#         key_list = [key]*self.n_layers
-#         key_list = jax.random.split(key,self.n_layers)
-#         state_hist = []
-#         for l in range(self.n_layers-1):
-#             if l == 0:
-#                 decay_param = True
-#             x = self.recurrent_layer(self.hidden_size, self.output_size, decay_param, self.timedecay_mean)(x)
-#             state_hist.append(x)
-#             x = x[0]
-#         x = self.recurrent_layer(self.hidden_size, self.output_size, False, self.timedecay_mean)(x)
-#         state_hist.append(x)
-#         out = nn.Dense(self.output_size, name='Dense_Out')(x[0])
-#         return state_hist, out
-    
-# BatchRNNFirstLayer = nn.vmap(RNNBackboneFirstLayer, in_axes=0, out_axes=0, variable_axes={'params': None}, split_rngs={'params': False})
 
 
 @jax.jit
