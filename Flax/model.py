@@ -6,6 +6,7 @@ from typing import Sequence
 from utils import bimodal_gaussian
 from functools import partial
 from jaxlib import xla_extension as xlx
+from types import SimpleNamespace
 
 
 
@@ -48,6 +49,8 @@ class minGRULayer(nn.Module):
         return state_hist
 
 
+
+
 class HeinsenMinGRULayer(nn.Module):
     '''
     MGU Layer
@@ -60,12 +63,26 @@ class HeinsenMinGRULayer(nn.Module):
         output_size: int, size of output
     '''
     hidden_size: int
-    output_size: int
-    decay: bool
-    timedecay_mean: Sequence[float]
+    decay_gate: bool
+    decay_candidate: bool
+    # timedecay_mean: Sequence[float]
     key: jax.random.key
-    hidden_nonlinearity: xlx.PjitFunction
+    # hidden_nonlinearity: xlx.PjitFunction
+    args: SimpleNamespace
 
+    def get_time_constants(self):
+        key_gate, key_cand = jax.random.split(self.key)
+        tcg = jax.random.uniform(key_gate, (self.hidden_size,), minval=self.args.time_decay_mean[1], maxval=self.args.time_decay_mean[0])
+        tcc = jax.random.uniform(key_cand, (self.hidden_size,), minval=self.args.time_decay_mean[1], maxval=self.args.time_decay_mean[0])
+        if self.args.train_gate_decay:
+            print("Trainable gate time constants, get from state")
+            tcg = None
+        if self.args.train_candidate_decay:
+            print("Trainable candidate time constants, get from state")
+            tcc = None          
+        return {"Time_constants_gate": tcg,
+                "Time_constants_candidate": tcc}
+        
 
     @nn.compact
     def __call__(self, x):
@@ -122,23 +139,32 @@ class HeinsenMinGRULayer(nn.Module):
         # )
 
         # time_constants = jax.random.uniform(self.key, (self.hidden_size,), minval=self.timedecay_mean[1], maxval=self.timedecay_mean[0])
-
-        if self.decay:
-            time_constants_gate = self.variable(
-                'Time_constants_gate',
-                lambda rng, shape: jnp.abs(jax.random.uniform(self.key, (self.hidden_size,), minval=self.timedecay_mean[1], maxval=self.timedecay_mean[0])),
-                (self.hidden_size,)
-            )
-            # ADD TRAINABILITY SWITCH
-            jax.lax.stop_gradient(time_constants_gate)
-
-            # TODO: Add trainability switch (maybe in hp dictionary or something), add time constants for candidate
-            # lower_bound = 1.0
-            # upper_bound = 1.5*self.timedecay_mean[0]
-            # time_constants = jnp.clip(time_constants, lower_bound, upper_bound)
-
+        key_gate, key_candidate = jax.random.split(self.key)
+        if self.decay_gate:
+            if self.args.train_gate_decay:
+                time_constants_gate = self.param(
+                    'Time_constants_gate',
+                    lambda rng, shape: jnp.abs(jax.random.uniform(key_gate, (self.hidden_size,), minval=self.args.time_decay_mean[1], maxval=self.args.time_decay_mean[0])),
+                    (self.hidden_size,)
+                )
+            else:
+                time_constants_gate = self.get_time_constants()["Time_constants_gate"]
+                
             # Generate decay kernels
             decay_kernels_gate = exponential_decay_kernel(time_constants_gate, 50)
+        
+        if self.decay_candidate:
+            if self.args.train_candidate_decay:
+                time_constants_cand = self.param(
+                    'Time_constants_gate',
+                    lambda rng, shape: jnp.abs(jax.random.uniform(key_candidate, (self.hidden_size,), minval=self.args.time_decay_mean[1], maxval=self.args.time_decay_mean[0])),
+                    (self.hidden_size,)
+                )
+            else:
+                time_constants_cand= self.get_time_constants()["Time_constants_candidate"]
+                
+            # Generate decay kernels
+            decay_kernels_cand = exponential_decay_kernel(time_constants_cand, 50)
 
         def update(x):
             '''
@@ -150,49 +176,82 @@ class HeinsenMinGRULayer(nn.Module):
             z_preact, h_tilde_preact = jnp.split(z_htilde, 2, axis=-1) # z_preact and h_tilde_preact: (784, 64)
             
             #Convolve z_preact with decay kernels
-            if self.decay:
+            if self.decay_gate:
                 z_preact = jax.vmap(
                     lambda z_, k: jax.scipy.signal.convolve(z_, k, mode='same'),
                     in_axes=(1, 0), out_axes=1
                 )(z_preact, decay_kernels_gate)
+            
+            #Convolve h_tilde_preact with decay kernels
+            if self.decay_candidate:
+                h_tilde_preact = jax.vmap(
+                    lambda h_, k: jax.scipy.signal.convolve(h_, k, mode='same'),
+                    in_axes=(1, 0), out_axes=1
+                )(h_tilde_preact, decay_kernels_cand)
 
             h_new = vj_heinsen_update(z_preact, h_tilde_preact) # h_new: (784, 64)
-            if self.hidden_nonlinearity is not None:
-                h_new = self.hidden_nonlinearity(h_new)
+            
+            if self.args.pre_mixing:
+                h_new = nn.Dense(self.hidden_size, name='Dense_h')(h_new)
+            if self.args.hidden_nonlinearity is not None:
+                h_new = self.args.hidden_nonlinearity(h_new)
+            
             return (h_new, z_preact, h_tilde_preact)
         
         state_hist = update(x)
         return state_hist
+    
 
 class RNNBackbone(nn.Module):
-    hidden_size: int
+    # hidden_size: int
     output_size: int
-    n_layers: int
-    decay: Sequence[bool]
-    timedecay_mean: Sequence[float]
-    seed: int
-    hidden_nonlinearity: xlx.PjitFunction
+    # n_layers: int
+    # decay: Sequence[bool]
+    # timedecay_mean: Sequence[float]
+    # seed: int
+    # hidden_nonlinearity: xlx.PjitFunction
+    args: SimpleNamespace
     recurrent_layer: nn.Module = HeinsenMinGRULayer
+
+    def get_time_constants(self, args, layer_index):
+        key = jax.random.PRNGKey(args.seed)
+        key_list = [key]*args.n_layers
+        key_list = jax.random.split(key,args.n_layers)
+        key_gate, key_cand = jax.random.split(key_list[layer_index])
+
+        tcg = jax.random.uniform(key_gate, (args.hidden_dim,), minval=args.time_decay_mean[1], maxval=args.time_decay_mean[0])
+        tcc = jax.random.uniform(key_cand, (args.hidden_dim,), minval=args.time_decay_mean[1], maxval=args.time_decay_mean[0])
+        
+        if args.train_gate_decay:
+            print("Trainable gate time constants, get from state")
+            tcg = None
+        if args.train_candidate_decay:
+            print("Trainable candidate time constants, get from state")
+            tcc = None          
+        return {"Time_constants_gate": tcg,
+                "Time_constants_candidate": tcc}
 
     @nn.compact
     def __call__(self, x):
-        key = jax.random.PRNGKey(self.seed)
-        key_list = [key]*self.n_layers
-        key_list = jax.random.split(key,self.n_layers)
+        key = jax.random.PRNGKey(self.args.seed)
+        key_list = [key]*self.args.n_layers
+        key_list = jax.random.split(key,self.args.n_layers)
         state_hist = []
         
-        for i in range(self.n_layers-1):
-            # print("Layer: ", i, "Decay: ", self.decay[i])
-            x = self.recurrent_layer(self.hidden_size, self.output_size, self.decay[i], self.timedecay_mean, key_list[i], self.hidden_nonlinearity)(x)
+        for i in range(self.args.n_layers-1):
+            # print("Layer: ", i, "Decay: ", self.args.decay[i])
+            x = self.recurrent_layer(self.args.hidden_dim, self.args.decay_gate[i], self.args.decay_candidate[i], key_list[i], self.args)(x)
             state_hist.append(x)
             x = x[0]
-        # print("Layer: ", self.n_layers-1, "Decay: ", self.decay[self.n_layers-1])
-        x = self.recurrent_layer(self.hidden_size, self.output_size, self.decay[self.n_layers-1], self.timedecay_mean, key_list[i], self.hidden_nonlinearity)(x)
+        # print("Layer: ", self.args.n_layers-1, "Decay: ", self.decay[self.args.n_layers-1])
+        x = self.recurrent_layer(self.args.hidden_dim, self.args.decay_gate[self.args.n_layers-1], self.args.decay_candidate[self.args.n_layers-1], key_list[i], self.args)(x)
         state_hist.append(x)
         out = nn.Dense(self.output_size, name='Dense_Out')(x[0])
         return state_hist, out
     
 BatchRNN = nn.vmap(RNNBackbone, in_axes=0, out_axes=0, variable_axes={'params': None}, split_rngs={'params': False})
+
+
 
 
 @jax.jit

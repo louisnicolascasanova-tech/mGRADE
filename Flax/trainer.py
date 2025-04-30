@@ -5,11 +5,11 @@ from tqdm import tqdm
 from flax.training import train_state, checkpoints
 import optax
 import os
-from utils import map_nested_fn
+from utils import map_nested_fn, round_weights_to_nearest
 from model import apply_model, update_model, eval_model
 
 
-def run_epoch(state, train_dl, rng, reg_factor, lim_batch=None, keys_to_track=None, inner_keys_to_track=None):
+def run_epoch(state, train_dl, rng, args, lim_batch=None, keys_to_track=None, inner_keys_to_track=None):
     """Train for a single epoch."""
 
     epoch_loss = []
@@ -19,7 +19,7 @@ def run_epoch(state, train_dl, rng, reg_factor, lim_batch=None, keys_to_track=No
     batch_id = 0
     break_flag = False
     for batch_x, batch_y in progress_bar:
-        grads, loss, accuracy, aux_dict = apply_model(state, batch_x, batch_y, reg_factor=reg_factor)
+        grads, loss, accuracy, aux_dict = apply_model(state, batch_x, batch_y, reg_factor=args.reg_factor)
         
         for k in keys_to_track:
             aux_dict_hist[k].append(locals()[k])
@@ -35,6 +35,16 @@ def run_epoch(state, train_dl, rng, reg_factor, lim_batch=None, keys_to_track=No
             break
 
         state = update_model(state, grads)
+        
+        # clipping time constants
+        if args.train_gate_decay:
+            lower_bound = 1.0
+            upper_bound = 1.5 * args.time_decay_mean[0]
+            state = state.replace(params=jax.tree_map(
+                lambda p: jnp.clip(p, lower_bound, upper_bound) if 'Time_constants_gate' in p else p,
+                state.params
+            ))
+
         batch_id += 1
 
         if batch_id % 3 == 0:
@@ -63,11 +73,11 @@ def validate(state, testloader):
 
 
 
-def create_train_state(key, model_cls, lr, dataset_version, hidden_size, n_layers, batch_size, decay, timedecay_mean, seed, hidden_nonlinearity):
+def create_train_state(key, model_cls, dataset_version, args):
     
-    init_x = jnp.ones((batch_size, 784, 1)) if dataset_version == "sequential" else jnp.ones((batch_size, 28, 28))
+    init_x = jnp.ones((args.batch_size, 784, 1)) if dataset_version == "sequential" else jnp.ones((args.batch_size, 28, 28))
 
-    model = model_cls(hidden_size=hidden_size, output_size=10, n_layers=n_layers, decay=decay, timedecay_mean=timedecay_mean, seed=seed, hidden_nonlinearity=hidden_nonlinearity)
+    model = model_cls(output_size=10, args=args)
     params = model.init(key, init_x)['params']
     
     # Debugging: Print parameter structure
@@ -82,7 +92,7 @@ def create_train_state(key, model_cls, lr, dataset_version, hidden_size, n_layer
 
     optimizer = optax.chain(
         # optax.clip_by_global_norm(1.0),
-        optax.adamw(lr, weight_decay=1e-2),
+        optax.adamw(args.lr, weight_decay=1e-2),
     )
     return train_state.TrainState.create(
         apply_fn=model.apply,
@@ -91,8 +101,7 @@ def create_train_state(key, model_cls, lr, dataset_version, hidden_size, n_layer
     )
 
 
-
-def train(key, state, trainloader, val_loader, testloader, n_epochs, reg_factor, result_dir, cktp_dir):
+def train(key, state, trainloader, val_loader, testloader, args, result_dir, cktp_dir):
     train_losses = []
     train_accuracies = []
     val_losses = []
@@ -108,10 +117,14 @@ def train(key, state, trainloader, val_loader, testloader, n_epochs, reg_factor,
 
     async_manager = checkpoints.AsyncManager()
 
-    for epoch in range(n_epochs):
+    for epoch in range(args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
-        state, train_loss, train_accuracy, (break_flag, aux_dict_epoch) = run_epoch(state, trainloader, key, reg_factor=reg_factor, lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track)
+        state, train_loss, train_accuracy, (break_flag, aux_dict_epoch) = run_epoch(state, trainloader, key, args, lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track)
         aux_dict_training.append(aux_dict_epoch)
+        
+        if args.round_weights:
+            state = state.replace(params=round_weights_to_nearest(state.params, step=0.5))
+
         if break_flag:
             break
         val_loss, val_acc  = validate(state, val_loader)
@@ -130,6 +143,7 @@ def train(key, state, trainloader, val_loader, testloader, n_epochs, reg_factor,
     test_loss, test_acc  = validate(state, testloader)
     print(f"Final Test | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
 
+    final_state = state
     # Save training dynamics
     np.savez(os.path.join(result_dir, 'training_dynamics.npz'), 
             train_losses=train_losses, 
@@ -139,4 +153,4 @@ def train(key, state, trainloader, val_loader, testloader, n_epochs, reg_factor,
     np.savez(os.path.join(result_dir, 'test_loss.npz'),
              test_loss=test_loss, test_acc=test_acc)
     
-    return train_losses, train_accuracies, val_losses, val_accuracies, test_loss, test_acc
+    return train_losses, train_accuracies, val_losses, val_accuracies, test_loss, test_acc, aux_dict_training, final_state

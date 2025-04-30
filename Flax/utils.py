@@ -9,6 +9,7 @@ from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from sklearn.metrics import confusion_matrix, classification_report
 import os
 import pandas as pd
+import seaborn as sns
 
 PX = 1/plt.rcParams['figure.dpi']
 
@@ -205,6 +206,20 @@ def create_mnist_classification_dataset(bsz=128, root="./data", version="sequent
     return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
 
 
+def round_weights_to_nearest(weights, step=0.5):
+    """
+    Round weights to the nearest multiple of a given step.
+
+    Args:
+        weights: The weights to be rounded (e.g., a JAX PyTree or array).
+        step: The step size to round to (default is 0.1).
+
+    Returns:
+        Rounded weights.
+    """
+    return jax.tree_map(lambda w: jnp.round(w / step) * step, weights)
+
+
 def g(x):
     return jnp.where(x > 0, x+0.5, jax.nn.sigmoid(x))
 
@@ -258,6 +273,34 @@ def bimodal_gaussian(key, size, mean1, mean2, std1, std2, weight1=0.5):
     # Combine the samples
     samples = jnp.where(mask, samples1, samples2)
     return samples
+
+def delay_mich_fft_k(input, K):
+    '''
+    :param input: 1D array of shape (sim_len,)
+    :param K: 1D array of shape (d_max,). n_rep-hot encoded delays
+    :return: 1D array of shape (sim_len+d_max,)
+    '''
+    # print(f'{input.shape=}')
+    # print(f'{K.shape=}')
+    d_max = K.shape[-1]
+    sim_len = input.shape[-1]
+    input_fft = jnp.fft.rfft(jnp.pad(input, (0, d_max)))
+    K_fft = jnp.fft.rfft(jnp.pad(K, (0, sim_len)))
+    I_fft = K_fft * input_fft
+    I = jnp.fft.irfft(I_fft)[:input.shape[0]]
+    return I
+
+
+j_delay_mich_fft_k = jax.jit(delay_mich_fft_k)
+vj_delay_mich_fft_k = jax.vmap(j_delay_mich_fft_k, in_axes=(0, 0))
+jvj_delay_mich_fft_k = jax.jit(vj_delay_mich_fft_k)
+vjvj_delay_mich_fft_k = jax.vmap(jvj_delay_mich_fft_k, in_axes=(None, 0))
+jvjvj_delay_mich_fft_k = jax.jit(vjvj_delay_mich_fft_k)
+
+def wrapper_jvjvj_delay_mich_fft_kw(input, Kw):
+    return jvjvj_delay_mich_fft_k(input, Kw).sum(1)
+
+j_wrapper_jvjvj_delay_mich_fft_kw = jax.jit(wrapper_jvjvj_delay_mich_fft_kw)
 
 def plot_dynamics(model, params, batch_inputs, batch_labels, dataset_version='sequential',
                     id_sample=0, nb_inputs_to_plot=5, nb_components_to_plot=5, model_type='srn', variable_to_plot='h', zoom=True):
@@ -614,6 +657,79 @@ def plot_cm(lbls, preds, plt_dir):
     plt.savefig(os.path.join(plt_dir, fig_name))
 
     plt.show()
+
+
+def plot_time_constants_gate(params_init, params_final, trainable, layer_index, model, args, layer_prefix="HeinsenMinGRULayer"):
+    """
+    Plot overlaid histograms of time_constants_gate for each layer in the model.
+
+    Args:
+        params_init: Initial model parameters (e.g., `params_init["params"]`).
+        params_final: Final model parameters (e.g., `final_state.params`).
+        layer_prefix: Prefix for layer names in the parameter dictionary.
+    """
+    for layer_id, layer_name in enumerate(params_init.keys()):
+        if layer_prefix in layer_name and layer_index == layer_id:
+            if trainable:
+                # Extract time_constants_gate for the layer
+                time_constants_init = params_init[layer_name].get('Time_constants_gate', None)
+                time_constants_final = params_final[layer_name].get('Time_constants_gate', None)
+                if time_constants_init is not None and time_constants_final is not None:
+                    time_constants_init = np.array(time_constants_init)  # Convert to NumPy array if necessary
+                    time_constants_final = np.array(time_constants_final)
+
+            else:
+                time_constants_init = model.get_time_constants(layer_index=layer_index, args=args)["Time_constants_gate"]
+                if time_constants_init is not None:
+                    time_constants_init = np.array(time_constants_init)  # Convert to NumPy array if necessary
+
+            # Plot overlaid histograms
+            plt.figure(figsize=(8, 6))
+            sns.histplot(time_constants_init.flatten(), fill=True, alpha=0.5, binwidth=0.1, stat="probability", color="red", label="Initial")
+            if trainable:
+                sns.histplot(time_constants_final.flatten(), fill=True, alpha=0.5, binwidth=0.1, stat="probability", color="blue", label="Final")
+            plt.title(f"Time Constants Gate Distribution for {layer_name} (Layer {layer_id})")
+            plt.xlabel("Time Constant Value")
+            plt.ylabel("Probability")
+            plt.legend()
+            plt.grid(True)
+            plt.show()
+
+def plot_weight_tc_gate_corr(params, layer_id, args, color=None):
+    """
+    Plot the correlation between weight magnitude into a specific unit of a specific layer
+    and the associated time constants.
+
+    Args:
+        params: Model parameters (e.g., from `final_state.params`).
+        layer_id: The layer index to analyze.
+        unit_id: The unit index within the layer to analyze.
+        time_constants: Array of time constants for the specific layer.
+    """
+    # Extract weights for the specific layer
+    layer_weights = params[f"HeinsenMinGRULayer_{layer_id}"]['Dense_x']['kernel'][:,:50]  # Adjust key names as needed
+    # layer_bias = params['params'][f"HeinsenMinGRULayer_{layer_id}"]['Dense_x']['bias']  # Adjust key names as needed
+    print(np.shape(layer_weights))
+    weight_magnitudes = np.linalg.norm(layer_weights, axis=0)  # Compute L2 norms of weights into each unit
+    print("Weight magnitudes:", np.shape(weight_magnitudes))
+
+    key = jax.random.PRNGKey(args.seed)
+    key_list = [key]*args.n_layers
+    key_list = jax.random.split(key,args.n_layers)
+    time_constants = jax.random.uniform(key_list[layer_id], (args.hidden_dim,), minval=args.time_decay_mean[1], maxval=args.time_decay_mean[0])
+
+    # Plot correlation
+    sns.jointplot(
+        x=weight_magnitudes,
+        y=time_constants,
+        kind="scatter",
+        marginal_kws=dict(bins=100, fill=True),
+        color=color
+    ).set_axis_labels("Weight Magnitude", "Time Constant")
+
+    plt.suptitle(f"Weight Magnitudes and Time Constants (Layer {layer_id})", y=1.02)
+    plt.show()
+
 
 def compute_classifcation_report(lbls, preds, sort=True):
     df = classification_report(lbls, preds, output_dict=True)
