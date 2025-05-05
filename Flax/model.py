@@ -271,6 +271,7 @@ def apply_model(state, x, y, reg_factor):
         batch_loss = optax.softmax_cross_entropy(logits=logits, labels=one_hot)
         reg = 0.0
         for layers in net_dyn:
+            # 2 is the candidate, layers[1] would regularize the gate
             reg += jnp.where(jnp.abs(layers[2]) > 1, layers[2]**2, 0.0).sum()
         reg += jnp.where(jnp.abs(out_hist) > 1, out_hist**2, 0.0).sum()
         loss = jnp.mean(batch_loss) + reg_factor * reg

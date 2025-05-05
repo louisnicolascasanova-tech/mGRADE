@@ -274,6 +274,9 @@ def bimodal_gaussian(key, size, mean1, mean2, std1, std2, weight1=0.5):
     samples = jnp.where(mask, samples1, samples2)
     return samples
 
+
+
+
 def delay_mich_fft_k(input, K):
     '''
     :param input: 1D array of shape (sim_len,)
@@ -301,6 +304,10 @@ def wrapper_jvjvj_delay_mich_fft_kw(input, Kw):
     return jvjvj_delay_mich_fft_k(input, Kw).sum(1)
 
 j_wrapper_jvjvj_delay_mich_fft_kw = jax.jit(wrapper_jvjvj_delay_mich_fft_kw)
+
+
+
+
 
 def plot_dynamics(model, params, batch_inputs, batch_labels, dataset_version='sequential',
                     id_sample=0, nb_inputs_to_plot=5, nb_components_to_plot=5, model_type='srn', variable_to_plot='h', zoom=True):
