@@ -9,7 +9,8 @@ def run_parameter_sweep():
     total_params = [1000, 1700, 3500, 5000, 10000]#20000
     layers = [2, 3, 4, 5, 6, 7]
     seeds = [0, 1, 2]
-    model_codes = ["nolayer", "firstlayer_gate", "firstlayer_candidate", "firstlayer", "alllayer_gate", "alllayer_candidate", "alllayer"]
+    model_codes = ["firstlayer_gate_trainable", "firstlayer_candidate_trainable", "firstlayer_trainable", "alllayer_gate_trainable", "alllayer_candidate_trainable", "alllayer_trainable"]
+    #["nolayer", "firstlayer_gate", "firstlayer_candidate", "firstlayer", "alllayer_gate", "alllayer_candidate", "alllayer"]
                    # TODO: Sweep over trainable versions! (but check that parameter count remains roughly equal!) # "firstlayer_gate_trainable", "firstlayer_candidate_trainable", "firstlayer_trainable", "alllayer_gate_trainable", "alllayer_candidate_trainable", "alllayer_trainable"]
     hidden_dims = [[18, 14, 11, 10, 9, 8],
                    [25, 18, 15, 13, 12, 11],

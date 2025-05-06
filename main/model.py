@@ -156,7 +156,7 @@ class HeinsenMinGRULayer(nn.Module):
         if self.decay_candidate:
             if self.args.train_candidate_decay:
                 time_constants_cand = self.param(
-                    'Time_constants_gate',
+                    'Time_constants_candidate',
                     lambda rng, shape: jnp.abs(jax.random.uniform(key_candidate, (self.hidden_size,), minval=self.args.time_decay_mean[1], maxval=self.args.time_decay_mean[0])),
                     (self.hidden_size,)
                 )

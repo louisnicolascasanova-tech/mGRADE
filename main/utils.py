@@ -447,6 +447,7 @@ def plot_loss_and_acc(train_losses, val_losses, train_accuracies, val_accuracies
     y_max = max(np.max(train_losses[offset:]), np.max(val_losses[offset:])) * 1.1
     ax_in0.set_ylim(y_min, y_max)
     ax_in0.set_yticks(np.arange(round(y_min, 2), y_max, 0.025))
+    ax_in0.tick_params(axis='both', labelsize=8)
     ax_in0.grid()
 
 
@@ -470,6 +471,7 @@ def plot_loss_and_acc(train_losses, val_losses, train_accuracies, val_accuracies
     y_max = max(np.max(val_accuracies[offset:]), np.max(train_accuracies[offset:])) * 1.001
     ax_in1.set_ylim(y_min, y_max)
     ax_in1.set_yticks(np.arange(round(y_min, 2), y_max, 0.0025))
+    ax_in1.tick_params(axis='both', labelsize=8)
     ax_in1.grid()
             
     plt.tight_layout()
