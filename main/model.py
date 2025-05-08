@@ -567,7 +567,7 @@ class RNN_Delayed_Backbone(nn.Module):
         for i in range(self.n_layers):
             # print(f'{x.shape=}')
             x = self.delay_layer(kernel_size=self.kernel_size, dim_out=x.shape[-1], dim_in=x.shape[-1], 
-                                 fft=self.fft, delay_type=self.delay_type, delay_kernel=self.delay_kernel,
+                                 fft=self.fft, delay_type=self.delay_type, delay_kernel=self.delay_kernel, init_std=self.init_std
                                  )(x)
             # print(f'{x.shape=}')
             out_dict = self.recurrent_layer(
