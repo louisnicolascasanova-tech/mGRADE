@@ -2518,5 +2518,2165 @@
             "final_train_acc": 0.9457331895828247,
             "steepness": 10.0
         }
+    ],
+    "(2, 18, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3956156075000763,
+            "test_acc": 0.8794070482254028,
+            "n_layers": 2.0,
+            "n_params": 964.0,
+            "final_train_loss": 0.4038427174091339,
+            "final_train_acc": 0.8773237466812134,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 14, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3420878052711487,
+            "test_acc": 0.8995392918586731,
+            "n_layers": 3.0,
+            "n_params": 1060.0,
+            "final_train_loss": 0.34572866559028625,
+            "final_train_acc": 0.9001402258872986,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 11, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4691888391971588,
+            "test_acc": 0.8511618375778198,
+            "n_layers": 4.0,
+            "n_params": 967.0,
+            "final_train_loss": 0.48038482666015625,
+            "final_train_acc": 0.8464342951774597,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 10, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.33713197708129883,
+            "test_acc": 0.9018429517745972,
+            "n_layers": 5.0,
+            "n_params": 1040.0,
+            "final_train_loss": 0.3476387560367584,
+            "final_train_acc": 0.9004206657409668,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 9, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.5685550570487976,
+            "test_acc": 0.8208132982254028,
+            "n_layers": 6.0,
+            "n_params": 1045.0,
+            "final_train_loss": 0.582806408405304,
+            "final_train_acc": 0.8135416507720947,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 8, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.7334973812103271,
+            "test_acc": 0.7439903616905212,
+            "n_layers": 7.0,
+            "n_params": 994.0,
+            "final_train_loss": 0.7512917518615723,
+            "final_train_acc": 0.7422876358032227,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 25, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.30916568636894226,
+            "test_acc": 0.9077523946762085,
+            "n_layers": 2.0,
+            "n_params": 1685.0,
+            "final_train_loss": 0.3186300992965698,
+            "final_train_acc": 0.9088942408561707,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 18, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.20240835845470428,
+            "test_acc": 0.9398036599159241,
+            "n_layers": 3.0,
+            "n_params": 1648.0,
+            "final_train_loss": 0.2036801129579544,
+            "final_train_acc": 0.9403245449066162,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 15, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2534260153770447,
+            "test_acc": 0.9256811141967773,
+            "n_layers": 4.0,
+            "n_params": 1675.0,
+            "final_train_loss": 0.25328171253204346,
+            "final_train_acc": 0.9275640845298767,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 13, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.31367382407188416,
+            "test_acc": 0.9116586446762085,
+            "n_layers": 5.0,
+            "n_params": 1661.0,
+            "final_train_loss": 0.2897264063358307,
+            "final_train_acc": 0.91796875,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 12, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3748587965965271,
+            "test_acc": 0.8770031929016113,
+            "n_layers": 6.0,
+            "n_params": 1750.0,
+            "final_train_loss": 0.35777410864830017,
+            "final_train_acc": 0.8853766322135925,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 11, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4267750382423401,
+            "test_acc": 0.8560696840286255,
+            "n_layers": 7.0,
+            "n_params": 1759.0,
+            "final_train_loss": 0.43625450134277344,
+            "final_train_acc": 0.8562700152397156,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 38, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2326764315366745,
+            "test_acc": 0.9285857081413269,
+            "n_layers": 2.0,
+            "n_params": 3544.0,
+            "final_train_loss": 0.24265828728675842,
+            "final_train_acc": 0.9279647469520569,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 27, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1243685856461525,
+            "test_acc": 0.963942289352417,
+            "n_layers": 3.0,
+            "n_params": 3439.0,
+            "final_train_loss": 0.12710994482040405,
+            "final_train_acc": 0.9625601172447205,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 23, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.17137005925178528,
+            "test_acc": 0.9509214758872986,
+            "n_layers": 4.0,
+            "n_params": 3667.0,
+            "final_train_loss": 0.17953842878341675,
+            "final_train_acc": 0.9468950033187866,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 20, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12837940454483032,
+            "test_acc": 0.9617387652397156,
+            "n_layers": 5.0,
+            "n_params": 3670.0,
+            "final_train_loss": 0.13926446437835693,
+            "final_train_acc": 0.9597555994987488,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 18, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.16022300720214844,
+            "test_acc": 0.9553285241127014,
+            "n_layers": 6.0,
+            "n_params": 3700.0,
+            "final_train_loss": 0.15702830255031586,
+            "final_train_acc": 0.9548878073692322,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 16, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.21006907522678375,
+            "test_acc": 0.9408053159713745,
+            "n_layers": 7.0,
+            "n_params": 3514.0,
+            "final_train_loss": 0.2061421275138855,
+            "final_train_acc": 0.9413661956787109,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 46, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.20280925929546356,
+            "test_acc": 0.9401041865348816,
+            "n_layers": 2.0,
+            "n_params": 5024.0,
+            "final_train_loss": 0.20895296335220337,
+            "final_train_acc": 0.9378405213356018,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 33, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12850071489810944,
+            "test_acc": 0.9597355723381042,
+            "n_layers": 3.0,
+            "n_params": 4993.0,
+            "final_train_loss": 0.12452259659767151,
+            "final_train_acc": 0.9631009697914124,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 27, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11806339770555496,
+            "test_acc": 0.9670472741127014,
+            "n_layers": 4.0,
+            "n_params": 4951.0,
+            "final_train_loss": 0.11183598637580872,
+            "final_train_acc": 0.9670873284339905,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 24, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15931659936904907,
+            "test_acc": 0.9541265964508057,
+            "n_layers": 5.0,
+            "n_params": 5170.0,
+            "final_train_loss": 0.15334586799144745,
+            "final_train_acc": 0.9550080299377441,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 21, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.24925479292869568,
+            "test_acc": 0.9256811141967773,
+            "n_layers": 6.0,
+            "n_params": 4945.0,
+            "final_train_loss": 0.268629252910614,
+            "final_train_acc": 0.9192908406257629,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 19, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.18252307176589966,
+            "test_acc": 0.9458132982254028,
+            "n_layers": 7.0,
+            "n_params": 4855.0,
+            "final_train_loss": 0.19517353177070618,
+            "final_train_acc": 0.9428685903549194,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 67, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.13803860545158386,
+            "test_acc": 0.9585336446762085,
+            "n_layers": 2.0,
+            "n_params": 10127.0,
+            "final_train_loss": 0.14337442815303802,
+            "final_train_acc": 0.9574118852615356,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 48, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.09501353651285172,
+            "test_acc": 0.9729567170143127,
+            "n_layers": 3.0,
+            "n_params": 10138.0,
+            "final_train_loss": 0.08917665481567383,
+            "final_train_acc": 0.9725561141967773,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 39, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.09767516702413559,
+            "test_acc": 0.9720553159713745,
+            "n_layers": 4.0,
+            "n_params": 9955.0,
+            "final_train_loss": 0.09512587636709213,
+            "final_train_acc": 0.9715544581413269,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 34, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.08805354684591293,
+            "test_acc": 0.9737580418586731,
+            "n_layers": 5.0,
+            "n_params": 10040.0,
+            "final_train_loss": 0.07993385940790176,
+            "final_train_acc": 0.9762620329856873,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 30, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.10585080832242966,
+            "test_acc": 0.9692507982254028,
+            "n_layers": 6.0,
+            "n_params": 9760.0,
+            "final_train_loss": 0.09316643327474594,
+            "final_train_acc": 0.9722957015037537,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 28, 'firstlayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1341121941804886,
+            "test_acc": 0.9598357081413269,
+            "n_layers": 7.0,
+            "n_params": 10174.0,
+            "final_train_loss": 0.13274595141410828,
+            "final_train_acc": 0.9606370329856873,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 18, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3470956087112427,
+            "test_acc": 0.897536039352417,
+            "n_layers": 2.0,
+            "n_params": 982.0,
+            "final_train_loss": 0.3629610538482666,
+            "final_train_acc": 0.8963742256164551,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 14, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3620944023132324,
+            "test_acc": 0.8845152258872986,
+            "n_layers": 3.0,
+            "n_params": 1088.0,
+            "final_train_loss": 0.36931806802749634,
+            "final_train_acc": 0.8870592713356018,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 11, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3962737023830414,
+            "test_acc": 0.875,
+            "n_layers": 4.0,
+            "n_params": 1000.0,
+            "final_train_loss": 0.39189305901527405,
+            "final_train_acc": 0.8835737109184265,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 10, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.39745959639549255,
+            "test_acc": 0.870192289352417,
+            "n_layers": 5.0,
+            "n_params": 1080.0,
+            "final_train_loss": 0.4054493308067322,
+            "final_train_acc": 0.8720753192901611,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 9, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4627915024757385,
+            "test_acc": 0.8469551205635071,
+            "n_layers": 6.0,
+            "n_params": 1090.0,
+            "final_train_loss": 0.4420590102672577,
+            "final_train_acc": 0.8556690812110901,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 8, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.583162784576416,
+            "test_acc": 0.8161057829856873,
+            "n_layers": 7.0,
+            "n_params": 1042.0,
+            "final_train_loss": 0.5858869552612305,
+            "final_train_acc": 0.8173477649688721,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 25, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2738467752933502,
+            "test_acc": 0.9173678159713745,
+            "n_layers": 2.0,
+            "n_params": 1710.0,
+            "final_train_loss": 0.2785224914550781,
+            "final_train_acc": 0.9191306233406067,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 18, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.25907284021377563,
+            "test_acc": 0.9251803159713745,
+            "n_layers": 3.0,
+            "n_params": 1684.0,
+            "final_train_loss": 0.26139122247695923,
+            "final_train_acc": 0.9235977530479431,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 15, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2243427336215973,
+            "test_acc": 0.9329928159713745,
+            "n_layers": 4.0,
+            "n_params": 1720.0,
+            "final_train_loss": 0.24042561650276184,
+            "final_train_acc": 0.9303686022758484,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 13, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3099323511123657,
+            "test_acc": 0.9011418223381042,
+            "n_layers": 5.0,
+            "n_params": 1713.0,
+            "final_train_loss": 0.2913770377635956,
+            "final_train_acc": 0.9108373522758484,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 12, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.34053927659988403,
+            "test_acc": 0.8928285241127014,
+            "n_layers": 6.0,
+            "n_params": 1810.0,
+            "final_train_loss": 0.34106674790382385,
+            "final_train_acc": 0.8947115540504456,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 11, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.42376089096069336,
+            "test_acc": 0.8535656929016113,
+            "n_layers": 7.0,
+            "n_params": 1825.0,
+            "final_train_loss": 0.427006334066391,
+            "final_train_acc": 0.8595553040504456,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 38, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.21498844027519226,
+            "test_acc": 0.9358974099159241,
+            "n_layers": 2.0,
+            "n_params": 3582.0,
+            "final_train_loss": 0.21639885008335114,
+            "final_train_acc": 0.9378405213356018,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 27, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.16061675548553467,
+            "test_acc": 0.9535256624221802,
+            "n_layers": 3.0,
+            "n_params": 3493.0,
+            "final_train_loss": 0.15467773377895355,
+            "final_train_acc": 0.9540464878082275,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 23, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.14018629491329193,
+            "test_acc": 0.9587339758872986,
+            "n_layers": 4.0,
+            "n_params": 3736.0,
+            "final_train_loss": 0.15654827654361725,
+            "final_train_acc": 0.9533053040504456,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 20, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15340442955493927,
+            "test_acc": 0.9554286599159241,
+            "n_layers": 5.0,
+            "n_params": 3750.0,
+            "final_train_loss": 0.1523389220237732,
+            "final_train_acc": 0.9545673131942749,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 18, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12929892539978027,
+            "test_acc": 0.9608373641967773,
+            "n_layers": 6.0,
+            "n_params": 3790.0,
+            "final_train_loss": 0.13379639387130737,
+            "final_train_acc": 0.9595552682876587,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 16, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.18337246775627136,
+            "test_acc": 0.9453125,
+            "n_layers": 7.0,
+            "n_params": 3610.0,
+            "final_train_loss": 0.15251295268535614,
+            "final_train_acc": 0.9545472860336304,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 46, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19094088673591614,
+            "test_acc": 0.9464142918586731,
+            "n_layers": 2.0,
+            "n_params": 5070.0,
+            "final_train_loss": 0.1947808712720871,
+            "final_train_acc": 0.9449920058250427,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 33, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11410804837942123,
+            "test_acc": 0.9663461446762085,
+            "n_layers": 3.0,
+            "n_params": 5059.0,
+            "final_train_loss": 0.11004016548395157,
+            "final_train_acc": 0.9670472741127014,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 27, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11745578795671463,
+            "test_acc": 0.9655448794364929,
+            "n_layers": 4.0,
+            "n_params": 5032.0,
+            "final_train_loss": 0.11285888403654099,
+            "final_train_acc": 0.9656850695610046,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 24, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1325404942035675,
+            "test_acc": 0.960036039352417,
+            "n_layers": 5.0,
+            "n_params": 5266.0,
+            "final_train_loss": 0.14143303036689758,
+            "final_train_acc": 0.9576522707939148,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 21, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15400925278663635,
+            "test_acc": 0.9525240659713745,
+            "n_layers": 6.0,
+            "n_params": 5050.0,
+            "final_train_loss": 0.17570683360099792,
+            "final_train_acc": 0.9473156929016113,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 19, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1390136033296585,
+            "test_acc": 0.9589343070983887,
+            "n_layers": 7.0,
+            "n_params": 4969.0,
+            "final_train_loss": 0.14915460348129272,
+            "final_train_acc": 0.9557291865348816,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 67, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.17583735287189484,
+            "test_acc": 0.9477163553237915,
+            "n_layers": 2.0,
+            "n_params": 10194.0,
+            "final_train_loss": 0.1692725569009781,
+            "final_train_acc": 0.9505809545516968,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 48, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11333487927913666,
+            "test_acc": 0.9647436141967773,
+            "n_layers": 3.0,
+            "n_params": 10234.0,
+            "final_train_loss": 0.10882677882909775,
+            "final_train_acc": 0.9674078822135925,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 39, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.09266121685504913,
+            "test_acc": 0.9722555875778198,
+            "n_layers": 4.0,
+            "n_params": 10072.0,
+            "final_train_loss": 0.09481978416442871,
+            "final_train_acc": 0.9709334969520569,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 34, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1013229712843895,
+            "test_acc": 0.9681490659713745,
+            "n_layers": 5.0,
+            "n_params": 10176.0,
+            "final_train_loss": 0.09441826492547989,
+            "final_train_acc": 0.9714142680168152,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 30, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12357036024332047,
+            "test_acc": 0.9625400900840759,
+            "n_layers": 6.0,
+            "n_params": 9910.0,
+            "final_train_loss": 0.11904732882976532,
+            "final_train_acc": 0.963201105594635,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 28, 'firstlayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12686114013195038,
+            "test_acc": 0.9621394276618958,
+            "n_layers": 7.0,
+            "n_params": 10342.0,
+            "final_train_loss": 0.10604594647884369,
+            "final_train_acc": 0.9678084850311279,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 18, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.42085716128349304,
+            "test_acc": 0.8653846383094788,
+            "n_layers": 2.0,
+            "n_params": 982.0,
+            "final_train_loss": 0.4390617609024048,
+            "final_train_acc": 0.8622796535491943,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 14, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.39540427923202515,
+            "test_acc": 0.8615785241127014,
+            "n_layers": 3.0,
+            "n_params": 1074.0,
+            "final_train_loss": 0.3950522541999817,
+            "final_train_acc": 0.8678285479545593,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 11, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.39432409405708313,
+            "test_acc": 0.8748998641967773,
+            "n_layers": 4.0,
+            "n_params": 978.0,
+            "final_train_loss": 0.4030502736568451,
+            "final_train_acc": 0.8716546297073364,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 10, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4451845586299896,
+            "test_acc": 0.8463541865348816,
+            "n_layers": 5.0,
+            "n_params": 1050.0,
+            "final_train_loss": 0.45530760288238525,
+            "final_train_acc": 0.8483573794364929,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 9, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4854830205440521,
+            "test_acc": 0.8347355723381042,
+            "n_layers": 6.0,
+            "n_params": 1054.0,
+            "final_train_loss": 0.4796389937400818,
+            "final_train_acc": 0.844611406326294,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 8, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.6095361113548279,
+            "test_acc": 0.8005809187889099,
+            "n_layers": 7.0,
+            "n_params": 1002.0,
+            "final_train_loss": 0.6194180846214294,
+            "final_train_acc": 0.7988181114196777,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 25, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.37073618173599243,
+            "test_acc": 0.8743990659713745,
+            "n_layers": 2.0,
+            "n_params": 1710.0,
+            "final_train_loss": 0.37798380851745605,
+            "final_train_acc": 0.8770031929016113,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 18, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2539692521095276,
+            "test_acc": 0.9216746687889099,
+            "n_layers": 3.0,
+            "n_params": 1666.0,
+            "final_train_loss": 0.2625846564769745,
+            "final_train_acc": 0.9186097979545593,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 15, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.36326053738594055,
+            "test_acc": 0.8822115659713745,
+            "n_layers": 4.0,
+            "n_params": 1690.0,
+            "final_train_loss": 0.371008038520813,
+            "final_train_acc": 0.8795472979545593,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 13, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3181936740875244,
+            "test_acc": 0.9061498641967773,
+            "n_layers": 5.0,
+            "n_params": 1674.0,
+            "final_train_loss": 0.33514681458473206,
+            "final_train_acc": 0.8982972502708435,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 12, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.40792641043663025,
+            "test_acc": 0.8633813858032227,
+            "n_layers": 6.0,
+            "n_params": 1762.0,
+            "final_train_loss": 0.4166503846645355,
+            "final_train_acc": 0.861758828163147,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 11, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.406218558549881,
+            "test_acc": 0.8565705418586731,
+            "n_layers": 7.0,
+            "n_params": 1770.0,
+            "final_train_loss": 0.42876559495925903,
+            "final_train_acc": 0.8554286956787109,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 38, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2654065489768982,
+            "test_acc": 0.9144631624221802,
+            "n_layers": 2.0,
+            "n_params": 3582.0,
+            "final_train_loss": 0.2783658802509308,
+            "final_train_acc": 0.9147035479545593,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 27, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.20754417777061462,
+            "test_acc": 0.9332932829856873,
+            "n_layers": 3.0,
+            "n_params": 3466.0,
+            "final_train_loss": 0.210787832736969,
+            "final_train_acc": 0.9351361989974976,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 23, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2251538783311844,
+            "test_acc": 0.926682710647583,
+            "n_layers": 4.0,
+            "n_params": 3690.0,
+            "final_train_loss": 0.24011249840259552,
+            "final_train_acc": 0.9253205060958862,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 20, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2611098289489746,
+            "test_acc": 0.9128605723381042,
+            "n_layers": 5.0,
+            "n_params": 3690.0,
+            "final_train_loss": 0.2728866934776306,
+            "final_train_acc": 0.9074319005012512,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 18, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.24025997519493103,
+            "test_acc": 0.924879789352417,
+            "n_layers": 6.0,
+            "n_params": 3718.0,
+            "final_train_loss": 0.24615176022052765,
+            "final_train_acc": 0.9212339520454407,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 16, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4049617350101471,
+            "test_acc": 0.8633813858032227,
+            "n_layers": 7.0,
+            "n_params": 3530.0,
+            "final_train_loss": 0.35972917079925537,
+            "final_train_acc": 0.8887219429016113,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 46, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.21767376363277435,
+            "test_acc": 0.9324919581413269,
+            "n_layers": 2.0,
+            "n_params": 5070.0,
+            "final_train_loss": 0.22816984355449677,
+            "final_train_acc": 0.9304487109184265,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 33, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19216662645339966,
+            "test_acc": 0.9387019276618958,
+            "n_layers": 3.0,
+            "n_params": 5026.0,
+            "final_train_loss": 0.20283594727516174,
+            "final_train_acc": 0.9362379908561707,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 27, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15108878910541534,
+            "test_acc": 0.9559294581413269,
+            "n_layers": 4.0,
+            "n_params": 4978.0,
+            "final_train_loss": 0.14666283130645752,
+            "final_train_acc": 0.9567508101463318,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 24, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.22226005792617798,
+            "test_acc": 0.9306890964508057,
+            "n_layers": 5.0,
+            "n_params": 5194.0,
+            "final_train_loss": 0.2144528329372406,
+            "final_train_acc": 0.9346153736114502,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 21, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.23379342257976532,
+            "test_acc": 0.9246794581413269,
+            "n_layers": 6.0,
+            "n_params": 4966.0,
+            "final_train_loss": 0.24940793216228485,
+            "final_train_acc": 0.9207732081413269,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 19, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.27779901027679443,
+            "test_acc": 0.9029446840286255,
+            "n_layers": 7.0,
+            "n_params": 4874.0,
+            "final_train_loss": 0.2966233193874359,
+            "final_train_acc": 0.8997195363044739,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 67, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19270560145378113,
+            "test_acc": 0.9407051205635071,
+            "n_layers": 2.0,
+            "n_params": 10194.0,
+            "final_train_loss": 0.19943316280841827,
+            "final_train_acc": 0.9390825033187866,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 48, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.10736420005559921,
+            "test_acc": 0.9664463400840759,
+            "n_layers": 3.0,
+            "n_params": 10186.0,
+            "final_train_loss": 0.1134737879037857,
+            "final_train_acc": 0.9657852649688721,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 39, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11374375969171524,
+            "test_acc": 0.9650440812110901,
+            "n_layers": 4.0,
+            "n_params": 9994.0,
+            "final_train_loss": 0.11762028187513351,
+            "final_train_acc": 0.9643028974533081,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 34, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.14521275460720062,
+            "test_acc": 0.9552283883094788,
+            "n_layers": 5.0,
+            "n_params": 10074.0,
+            "final_train_loss": 0.14876285195350647,
+            "final_train_acc": 0.9534254670143127,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 30, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12726828455924988,
+            "test_acc": 0.9624398946762085,
+            "n_layers": 6.0,
+            "n_params": 9790.0,
+            "final_train_loss": 0.1363316774368286,
+            "final_train_acc": 0.9577123522758484,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 28, 'firstlayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2171180248260498,
+            "test_acc": 0.9277844429016113,
+            "n_layers": 7.0,
+            "n_params": 10202.0,
+            "final_train_loss": 0.23739838600158691,
+            "final_train_acc": 0.9207531809806824,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 18, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.37563443183898926,
+            "test_acc": 0.8873196840286255,
+            "n_layers": 2.0,
+            "n_params": 982.0,
+            "final_train_loss": 0.3835621476173401,
+            "final_train_acc": 0.8860176205635071,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 14, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2647753357887268,
+            "test_acc": 0.9189703464508057,
+            "n_layers": 3.0,
+            "n_params": 1088.0,
+            "final_train_loss": 0.26743781566619873,
+            "final_train_acc": 0.9216546416282654,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 11, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4164847731590271,
+            "test_acc": 0.8785055875778198,
+            "n_layers": 4.0,
+            "n_params": 1000.0,
+            "final_train_loss": 0.4429998993873596,
+            "final_train_acc": 0.869451105594635,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 10, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3939886689186096,
+            "test_acc": 0.8854166865348816,
+            "n_layers": 5.0,
+            "n_params": 1080.0,
+            "final_train_loss": 0.3861056864261627,
+            "final_train_acc": 0.8869991898536682,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 9, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.6091541647911072,
+            "test_acc": 0.8151041865348816,
+            "n_layers": 6.0,
+            "n_params": 1090.0,
+            "final_train_loss": 0.6221615076065063,
+            "final_train_acc": 0.8099358677864075,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 8, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.7755430936813354,
+            "test_acc": 0.7286658883094788,
+            "n_layers": 7.0,
+            "n_params": 1042.0,
+            "final_train_loss": 0.7664865255355835,
+            "final_train_acc": 0.7380008101463318,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 25, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.260202556848526,
+            "test_acc": 0.9204727411270142,
+            "n_layers": 2.0,
+            "n_params": 1710.0,
+            "final_train_loss": 0.26876476407051086,
+            "final_train_acc": 0.9207331538200378,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 18, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19549427926540375,
+            "test_acc": 0.9434094429016113,
+            "n_layers": 3.0,
+            "n_params": 1684.0,
+            "final_train_loss": 0.20211441814899445,
+            "final_train_acc": 0.9419070482254028,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 15, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.17735926806926727,
+            "test_acc": 0.9475160241127014,
+            "n_layers": 4.0,
+            "n_params": 1720.0,
+            "final_train_loss": 0.17469586431980133,
+            "final_train_acc": 0.9501602649688721,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 13, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.24851013720035553,
+            "test_acc": 0.9265825152397156,
+            "n_layers": 5.0,
+            "n_params": 1713.0,
+            "final_train_loss": 0.2533353865146637,
+            "final_train_acc": 0.9263020753860474,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 12, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3266408443450928,
+            "test_acc": 0.9063501358032227,
+            "n_layers": 6.0,
+            "n_params": 1810.0,
+            "final_train_loss": 0.34055277705192566,
+            "final_train_acc": 0.9015825390815735,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 11, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.44706442952156067,
+            "test_acc": 0.8571714758872986,
+            "n_layers": 7.0,
+            "n_params": 1825.0,
+            "final_train_loss": 0.4324663281440735,
+            "final_train_acc": 0.861798882484436,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 38, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.18064425885677338,
+            "test_acc": 0.9456129670143127,
+            "n_layers": 2.0,
+            "n_params": 3582.0,
+            "final_train_loss": 0.18352170288562775,
+            "final_train_acc": 0.9467548131942749,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 27, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11165105551481247,
+            "test_acc": 0.9682492017745972,
+            "n_layers": 3.0,
+            "n_params": 3493.0,
+            "final_train_loss": 0.11071601510047913,
+            "final_train_acc": 0.9683894515037537,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 23, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.10640929639339447,
+            "test_acc": 0.9701522588729858,
+            "n_layers": 4.0,
+            "n_params": 3736.0,
+            "final_train_loss": 0.10677852481603622,
+            "final_train_acc": 0.9690704941749573,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 20, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15004847943782806,
+            "test_acc": 0.9576321840286255,
+            "n_layers": 5.0,
+            "n_params": 3750.0,
+            "final_train_loss": 0.12584887444972992,
+            "final_train_acc": 0.963201105594635,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 18, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.14202697575092316,
+            "test_acc": 0.9598357081413269,
+            "n_layers": 6.0,
+            "n_params": 3790.0,
+            "final_train_loss": 0.14784061908721924,
+            "final_train_acc": 0.9582331776618958,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 16, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.124348483979702,
+            "test_acc": 0.9645432829856873,
+            "n_layers": 7.0,
+            "n_params": 3610.0,
+            "final_train_loss": 0.14035874605178833,
+            "final_train_acc": 0.959294855594635,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 46, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1465914398431778,
+            "test_acc": 0.9571313858032227,
+            "n_layers": 2.0,
+            "n_params": 5070.0,
+            "final_train_loss": 0.14495201408863068,
+            "final_train_acc": 0.9578525424003601,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 33, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.08652354776859283,
+            "test_acc": 0.9759615659713745,
+            "n_layers": 3.0,
+            "n_params": 5059.0,
+            "final_train_loss": 0.08810541033744812,
+            "final_train_acc": 0.9736778736114502,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 27, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.08356156945228577,
+            "test_acc": 0.9744591116905212,
+            "n_layers": 4.0,
+            "n_params": 5032.0,
+            "final_train_loss": 0.08622587472200394,
+            "final_train_acc": 0.9740585088729858,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 24, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.09021411836147308,
+            "test_acc": 0.9742588400840759,
+            "n_layers": 5.0,
+            "n_params": 5266.0,
+            "final_train_loss": 0.0985637977719307,
+            "final_train_acc": 0.9713942408561707,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 21, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.08924799412488937,
+            "test_acc": 0.9737580418586731,
+            "n_layers": 6.0,
+            "n_params": 5050.0,
+            "final_train_loss": 0.10376392304897308,
+            "final_train_acc": 0.9691105484962463,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 19, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.13555267453193665,
+            "test_acc": 0.9619390964508057,
+            "n_layers": 7.0,
+            "n_params": 4969.0,
+            "final_train_loss": 0.14309728145599365,
+            "final_train_acc": 0.9580929279327393,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 67, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.13570375740528107,
+            "test_acc": 0.9592347741127014,
+            "n_layers": 2.0,
+            "n_params": 10194.0,
+            "final_train_loss": 0.13075946271419525,
+            "final_train_acc": 0.9616186022758484,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 48, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.07848656922578812,
+            "test_acc": 0.9755609035491943,
+            "n_layers": 3.0,
+            "n_params": 10234.0,
+            "final_train_loss": 0.07308363914489746,
+            "final_train_acc": 0.9781049489974976,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 39, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.08508031815290451,
+            "test_acc": 0.9740585088729858,
+            "n_layers": 4.0,
+            "n_params": 10072.0,
+            "final_train_loss": 0.06715967506170273,
+            "final_train_acc": 0.9802884459495544,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 34, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.07412882894277573,
+            "test_acc": 0.9778645634651184,
+            "n_layers": 5.0,
+            "n_params": 10176.0,
+            "final_train_loss": 0.07083415240049362,
+            "final_train_acc": 0.9789263010025024,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 30, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.07125890254974365,
+            "test_acc": 0.9784655570983887,
+            "n_layers": 6.0,
+            "n_params": 9910.0,
+            "final_train_loss": 0.07392668724060059,
+            "final_train_acc": 0.9782251715660095,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 28, 'alllayer_gate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.0629805251955986,
+            "test_acc": 0.9820713400840759,
+            "n_layers": 7.0,
+            "n_params": 10342.0,
+            "final_train_loss": 0.07192984223365784,
+            "final_train_acc": 0.9792267680168152,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 18, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3470956087112427,
+            "test_acc": 0.897536039352417,
+            "n_layers": 2.0,
+            "n_params": 982.0,
+            "final_train_loss": 0.3629610538482666,
+            "final_train_acc": 0.8963742256164551,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 14, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3620944023132324,
+            "test_acc": 0.8845152258872986,
+            "n_layers": 3.0,
+            "n_params": 1088.0,
+            "final_train_loss": 0.36931806802749634,
+            "final_train_acc": 0.8870592713356018,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 11, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3962737023830414,
+            "test_acc": 0.875,
+            "n_layers": 4.0,
+            "n_params": 1000.0,
+            "final_train_loss": 0.39189305901527405,
+            "final_train_acc": 0.8835737109184265,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 10, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4047696590423584,
+            "test_acc": 0.8673878312110901,
+            "n_layers": 5.0,
+            "n_params": 1080.0,
+            "final_train_loss": 0.4069356322288513,
+            "final_train_acc": 0.8708533644676208,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 9, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3990589678287506,
+            "test_acc": 0.8752003312110901,
+            "n_layers": 6.0,
+            "n_params": 1090.0,
+            "final_train_loss": 0.41089779138565063,
+            "final_train_acc": 0.8726963400840759,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 8, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.5067316889762878,
+            "test_acc": 0.8243188858032227,
+            "n_layers": 7.0,
+            "n_params": 1042.0,
+            "final_train_loss": 0.5134365558624268,
+            "final_train_acc": 0.8295272588729858,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 25, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2738467752933502,
+            "test_acc": 0.9173678159713745,
+            "n_layers": 2.0,
+            "n_params": 1710.0,
+            "final_train_loss": 0.2785224914550781,
+            "final_train_acc": 0.9191306233406067,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 18, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.25907284021377563,
+            "test_acc": 0.9251803159713745,
+            "n_layers": 3.0,
+            "n_params": 1684.0,
+            "final_train_loss": 0.26139122247695923,
+            "final_train_acc": 0.9235977530479431,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 15, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2243427336215973,
+            "test_acc": 0.9329928159713745,
+            "n_layers": 4.0,
+            "n_params": 1720.0,
+            "final_train_loss": 0.24042561650276184,
+            "final_train_acc": 0.9303686022758484,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 13, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3099323511123657,
+            "test_acc": 0.9011418223381042,
+            "n_layers": 5.0,
+            "n_params": 1713.0,
+            "final_train_loss": 0.2913770377635956,
+            "final_train_acc": 0.9108373522758484,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 12, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.34053927659988403,
+            "test_acc": 0.8928285241127014,
+            "n_layers": 6.0,
+            "n_params": 1810.0,
+            "final_train_loss": 0.34106674790382385,
+            "final_train_acc": 0.8947115540504456,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 11, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3083818256855011,
+            "test_acc": 0.901442289352417,
+            "n_layers": 7.0,
+            "n_params": 1825.0,
+            "final_train_loss": 0.33962151408195496,
+            "final_train_acc": 0.8921874761581421,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 38, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.21498844027519226,
+            "test_acc": 0.9358974099159241,
+            "n_layers": 2.0,
+            "n_params": 3582.0,
+            "final_train_loss": 0.21639885008335114,
+            "final_train_acc": 0.9378405213356018,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 27, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.16061675548553467,
+            "test_acc": 0.9535256624221802,
+            "n_layers": 3.0,
+            "n_params": 3493.0,
+            "final_train_loss": 0.15467773377895355,
+            "final_train_acc": 0.9540464878082275,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 23, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.14018629491329193,
+            "test_acc": 0.9587339758872986,
+            "n_layers": 4.0,
+            "n_params": 3736.0,
+            "final_train_loss": 0.15654827654361725,
+            "final_train_acc": 0.9533053040504456,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 20, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.20543086528778076,
+            "test_acc": 0.9356971383094788,
+            "n_layers": 5.0,
+            "n_params": 3750.0,
+            "final_train_loss": 0.22091858088970184,
+            "final_train_acc": 0.9336738586425781,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 18, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12929892539978027,
+            "test_acc": 0.9608373641967773,
+            "n_layers": 6.0,
+            "n_params": 3790.0,
+            "final_train_loss": 0.13379639387130737,
+            "final_train_acc": 0.9595552682876587,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 16, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.18337246775627136,
+            "test_acc": 0.9453125,
+            "n_layers": 7.0,
+            "n_params": 3610.0,
+            "final_train_loss": 0.15251295268535614,
+            "final_train_acc": 0.9545472860336304,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 46, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19094088673591614,
+            "test_acc": 0.9464142918586731,
+            "n_layers": 2.0,
+            "n_params": 5070.0,
+            "final_train_loss": 0.1947808712720871,
+            "final_train_acc": 0.9449920058250427,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 33, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11410804837942123,
+            "test_acc": 0.9663461446762085,
+            "n_layers": 3.0,
+            "n_params": 5059.0,
+            "final_train_loss": 0.11004016548395157,
+            "final_train_acc": 0.9670472741127014,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 27, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11745578795671463,
+            "test_acc": 0.9655448794364929,
+            "n_layers": 4.0,
+            "n_params": 5032.0,
+            "final_train_loss": 0.11285888403654099,
+            "final_train_acc": 0.9656850695610046,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 24, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1325404942035675,
+            "test_acc": 0.960036039352417,
+            "n_layers": 5.0,
+            "n_params": 5266.0,
+            "final_train_loss": 0.14143303036689758,
+            "final_train_acc": 0.9576522707939148,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 21, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15400925278663635,
+            "test_acc": 0.9525240659713745,
+            "n_layers": 6.0,
+            "n_params": 5050.0,
+            "final_train_loss": 0.17570683360099792,
+            "final_train_acc": 0.9473156929016113,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 19, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1390136033296585,
+            "test_acc": 0.9589343070983887,
+            "n_layers": 7.0,
+            "n_params": 4969.0,
+            "final_train_loss": 0.14915460348129272,
+            "final_train_acc": 0.9557291865348816,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 67, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.17583735287189484,
+            "test_acc": 0.9477163553237915,
+            "n_layers": 2.0,
+            "n_params": 10194.0,
+            "final_train_loss": 0.1692725569009781,
+            "final_train_acc": 0.9505809545516968,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 48, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.11333487927913666,
+            "test_acc": 0.9647436141967773,
+            "n_layers": 3.0,
+            "n_params": 10234.0,
+            "final_train_loss": 0.10882677882909775,
+            "final_train_acc": 0.9674078822135925,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 39, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.09266121685504913,
+            "test_acc": 0.9722555875778198,
+            "n_layers": 4.0,
+            "n_params": 10072.0,
+            "final_train_loss": 0.09481978416442871,
+            "final_train_acc": 0.9709334969520569,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 34, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1013229712843895,
+            "test_acc": 0.9681490659713745,
+            "n_layers": 5.0,
+            "n_params": 10176.0,
+            "final_train_loss": 0.09441826492547989,
+            "final_train_acc": 0.9714142680168152,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 30, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12357036024332047,
+            "test_acc": 0.9625400900840759,
+            "n_layers": 6.0,
+            "n_params": 9910.0,
+            "final_train_loss": 0.11904732882976532,
+            "final_train_acc": 0.963201105594635,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 28, 'alllayer_candidate_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12686114013195038,
+            "test_acc": 0.9621394276618958,
+            "n_layers": 7.0,
+            "n_params": 10342.0,
+            "final_train_loss": 0.10604594647884369,
+            "final_train_acc": 0.9678084850311279,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 18, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.35884878039360046,
+            "test_acc": 0.8822115659713745,
+            "n_layers": 2.0,
+            "n_params": 1018.0,
+            "final_train_loss": 0.366899311542511,
+            "final_train_acc": 0.8824920058250427,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 14, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.320773720741272,
+            "test_acc": 0.8935296535491943,
+            "n_layers": 3.0,
+            "n_params": 1130.0,
+            "final_train_loss": 0.32558491826057434,
+            "final_train_acc": 0.8993589878082275,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 11, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3695753514766693,
+            "test_acc": 0.8685897588729858,
+            "n_layers": 4.0,
+            "n_params": 1044.0,
+            "final_train_loss": 0.3825732171535492,
+            "final_train_acc": 0.8669671416282654,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 10, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3956841826438904,
+            "test_acc": 0.8653846383094788,
+            "n_layers": 5.0,
+            "n_params": 1130.0,
+            "final_train_loss": 0.3853210508823395,
+            "final_train_acc": 0.8688501715660095,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 9, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.37364885210990906,
+            "test_acc": 0.8700921535491943,
+            "n_layers": 6.0,
+            "n_params": 1144.0,
+            "final_train_loss": 0.38809970021247864,
+            "final_train_acc": 0.866326093673706,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 8, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.4809122681617737,
+            "test_acc": 0.8436498641967773,
+            "n_layers": 7.0,
+            "n_params": 1098.0,
+            "final_train_loss": 0.4936915338039398,
+            "final_train_acc": 0.8400841355323792,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 25, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3413918614387512,
+            "test_acc": 0.885817289352417,
+            "n_layers": 2.0,
+            "n_params": 1760.0,
+            "final_train_loss": 0.35495221614837646,
+            "final_train_acc": 0.8825120329856873,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 18, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.26917773485183716,
+            "test_acc": 0.9127604365348816,
+            "n_layers": 3.0,
+            "n_params": 1738.0,
+            "final_train_loss": 0.26523298025131226,
+            "final_train_acc": 0.9138821959495544,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 15, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.29970765113830566,
+            "test_acc": 0.8927283883094788,
+            "n_layers": 4.0,
+            "n_params": 1780.0,
+            "final_train_loss": 0.31783440709114075,
+            "final_train_acc": 0.8910456895828247,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 13, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2741249203681946,
+            "test_acc": 0.9144631624221802,
+            "n_layers": 5.0,
+            "n_params": 1778.0,
+            "final_train_loss": 0.28953129053115845,
+            "final_train_acc": 0.9100561141967773,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 12, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.35228604078292847,
+            "test_acc": 0.8793069124221802,
+            "n_layers": 6.0,
+            "n_params": 1882.0,
+            "final_train_loss": 0.3684364855289459,
+            "final_train_acc": 0.8755208253860474,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 11, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.3781537711620331,
+            "test_acc": 0.8655849099159241,
+            "n_layers": 7.0,
+            "n_params": 1902.0,
+            "final_train_loss": 0.38310524821281433,
+            "final_train_acc": 0.8664863705635071,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 38, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2395683377981186,
+            "test_acc": 0.9263821840286255,
+            "n_layers": 2.0,
+            "n_params": 3658.0,
+            "final_train_loss": 0.24601541459560394,
+            "final_train_acc": 0.9248397350311279,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 27, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2613495886325836,
+            "test_acc": 0.9148637652397156,
+            "n_layers": 3.0,
+            "n_params": 3574.0,
+            "final_train_loss": 0.27151885628700256,
+            "final_train_acc": 0.9121594429016113,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 23, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2057514637708664,
+            "test_acc": 0.934495210647583,
+            "n_layers": 4.0,
+            "n_params": 3828.0,
+            "final_train_loss": 0.21468427777290344,
+            "final_train_acc": 0.9319911599159241,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 20, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2376919984817505,
+            "test_acc": 0.9238781929016113,
+            "n_layers": 5.0,
+            "n_params": 3850.0,
+            "final_train_loss": 0.24806056916713715,
+            "final_train_acc": 0.9189302921295166,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 18, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1941806823015213,
+            "test_acc": 0.9378004670143127,
+            "n_layers": 6.0,
+            "n_params": 3898.0,
+            "final_train_loss": 0.19723409414291382,
+            "final_train_acc": 0.9385015964508057,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 16, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2023749202489853,
+            "test_acc": 0.9378004670143127,
+            "n_layers": 7.0,
+            "n_params": 3722.0,
+            "final_train_loss": 0.21635687351226807,
+            "final_train_acc": 0.9300681352615356,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 46, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.24321883916854858,
+            "test_acc": 0.9220753312110901,
+            "n_layers": 2.0,
+            "n_params": 5162.0,
+            "final_train_loss": 0.2545938789844513,
+            "final_train_acc": 0.9208934307098389,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 33, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.16809603571891785,
+            "test_acc": 0.9465144276618958,
+            "n_layers": 3.0,
+            "n_params": 5158.0,
+            "final_train_loss": 0.16306142508983612,
+            "final_train_acc": 0.9483774304389954,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 27, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.18178026378154755,
+            "test_acc": 0.9447115659713745,
+            "n_layers": 4.0,
+            "n_params": 5140.0,
+            "final_train_loss": 0.1806572675704956,
+            "final_train_acc": 0.9434094429016113,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 24, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.20205052196979523,
+            "test_acc": 0.9349960088729858,
+            "n_layers": 5.0,
+            "n_params": 5386.0,
+            "final_train_loss": 0.21016688644886017,
+            "final_train_acc": 0.9341546297073364,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 21, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19606682658195496,
+            "test_acc": 0.9388020634651184,
+            "n_layers": 6.0,
+            "n_params": 5176.0,
+            "final_train_loss": 0.169728621840477,
+            "final_train_acc": 0.9485376477241516,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 19, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.2104499489068985,
+            "test_acc": 0.9349960088729858,
+            "n_layers": 7.0,
+            "n_params": 5102.0,
+            "final_train_loss": 0.21044635772705078,
+            "final_train_acc": 0.9359976053237915,
+            "steepness": 10.0
+        }
+    ],
+    "(2, 67, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.19960154592990875,
+            "test_acc": 0.9394030570983887,
+            "n_layers": 2.0,
+            "n_params": 10328.0,
+            "final_train_loss": 0.18947196006774902,
+            "final_train_acc": 0.9422075152397156,
+            "steepness": 10.0
+        }
+    ],
+    "(3, 48, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.1428486853837967,
+            "test_acc": 0.9557291865348816,
+            "n_layers": 3.0,
+            "n_params": 10378.0,
+            "final_train_loss": 0.13650529086589813,
+            "final_train_acc": 0.9571714997291565,
+            "steepness": 10.0
+        }
+    ],
+    "(4, 39, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.13520626723766327,
+            "test_acc": 0.9589343070983887,
+            "n_layers": 4.0,
+            "n_params": 10228.0,
+            "final_train_loss": 0.12974262237548828,
+            "final_train_acc": 0.9589543342590332,
+            "steepness": 10.0
+        }
+    ],
+    "(5, 34, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.12950392067432404,
+            "test_acc": 0.960036039352417,
+            "n_layers": 5.0,
+            "n_params": 10346.0,
+            "final_train_loss": 0.14663586020469666,
+            "final_train_acc": 0.9534054398536682,
+            "steepness": 10.0
+        }
+    ],
+    "(6, 30, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.15883442759513855,
+            "test_acc": 0.9498196840286255,
+            "n_layers": 6.0,
+            "n_params": 10090.0,
+            "final_train_loss": 0.15595200657844543,
+            "final_train_acc": 0.9513021111488342,
+            "steepness": 10.0
+        }
+    ],
+    "(7, 28, 'alllayer_trainable')": [
+        {
+            "seed": 0.0,
+            "test_loss": 0.14906872808933258,
+            "test_acc": 0.9537259340286255,
+            "n_layers": 7.0,
+            "n_params": 10538.0,
+            "final_train_loss": 0.16242337226867676,
+            "final_train_acc": 0.9497195482254028,
+            "steepness": 10.0
+        }
     ]
 }
