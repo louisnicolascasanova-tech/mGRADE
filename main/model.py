@@ -419,8 +419,8 @@ class DCLSLayer(nn.Module):
     kernel_size: int
     dim_in: int
     dim_out: int
-    init_std: float = 5 # paper 0.23
     fft: bool = False
+    init_std: float = 5 # paper 0.23
     delay_type: str = 'synaptic' # 'synaptic', 'axonal'
     delay_kernel: str = 'gaussian' # 'impulse', WARNING: ONLY "gaussian" is implemented for now
     def setup(self):
@@ -555,8 +555,9 @@ class RNN_Delayed_Backbone(nn.Module):
     layer_act: str = 'linear' # 'tanh', 'sigmoid', 'relu'
     recurrent_layer: nn.Module = HeinsenMinGRULayerOriginal
     delay_layer: nn.Module = DCLSLayer
-    kernel_size: int = 50
     fft: bool = False
+    kernel_size: int = 50
+    init_std: float = 5 # paper 0.23
     delay_type: str = 'synaptic' # 'synaptic', 'axonal'
     delay_kernel: str = 'gaussian' # 'impulse', WARNING: ONLY "gaussian" is implemented for now
 
