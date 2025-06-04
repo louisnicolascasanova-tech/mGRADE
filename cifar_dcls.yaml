@@ -30,6 +30,7 @@ dilation_offset: ~
 constant_dilation: ~
 kernel_n_elems: 4 # DCLS
 heterogeneous_weights: False # DCLS
+heterogeneous_positions: True # DCLS
 heterogeneous_std: False # DCLS
 train_weights: False # DCLS
 train_positions: True

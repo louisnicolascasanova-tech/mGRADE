@@ -27,6 +27,18 @@ def constant_init():
         return p
     return init
 
+def dilated_init():
+    def init(key, shape, kernel_size, kernel_n_elems, dtype=jnp.float32):
+        dilation = kernel_size // kernel_n_elems
+        if len(shape) == 2:
+            p = jnp.arange(0, kernel_size, dilation)[:, None] * jnp.ones(shape[-1])
+        elif len(shape) == 3:
+            p = jnp.arange(0, kernel_size, dilation)[:, None, None] * jnp.ones((shape[-2], shape[-1]))
+        else:
+            raise ValueError(f"Shape {shape} is not supported")
+        return p
+    return init
+
 class minGRULayer(nn.Module):
     '''
     MGU Layer
@@ -302,6 +314,7 @@ class DCLSLayer(nn.Module):
     delay_kernel: str = 'gaussian' # 'impulse', WARNING: ONLY "gaussian" is implemented for now
     init_std: float = 5 # paper 0.23
     heterogeneous_weights: bool = True
+    heterogeneous_positions: bool = True
     heterogeneous_std: bool = False
     def setup(self):
 
@@ -314,7 +327,10 @@ class DCLSLayer(nn.Module):
         else:
             self.weights = self.param(f'weights', constant_init(), params_shape, 1.0)
         # sample positions from uniform distribution [0, kernel_size]
-        self.positions = self.param(f'positions', uniform_init(), params_shape, self.kernel_size-1)
+        if self.heterogeneous_positions:
+            self.positions = self.param(f'positions', uniform_init(), params_shape, self.kernel_size-1)
+        else: 
+            self.positions = self.param(f'positions', dilated_init(), params_shape, self.kernel_size, self.kernel_n_elems)
         if self.heterogeneous_std:
             self.std = self.param(f'std', uniform_init(), params_shape, self.init_std*0.8, self.init_std*1.2)
         else:
@@ -523,6 +539,7 @@ class RNN_General_Backbone(nn.Module):
     dcls_kernel: str = 'gaussian' # 'impulse', WARNING: ONLY "gaussian" is implemented for now
     dcls_fft: bool = False
     dcls_heterogeneous_weights: bool = True
+    dcls_heterogeneous_positions: bool = True
     dcls_heterogeneous_std: bool = False
     wavenet_dilation: bool = False
     dilation_schedule: str = 'clip' # 'clip', 'wrap', 'linear
@@ -570,6 +587,7 @@ class RNN_General_Backbone(nn.Module):
                                     fft=self.dcls_fft, delay_type=self.dcls_type, delay_kernel=self.dcls_kernel,
                                     init_std=self.dcls_std, 
                                     heterogeneous_weights=self.dcls_heterogeneous_weights,
+                                    heterogeneous_positions=self.dcls_heterogeneous_positions,
                                     heterogeneous_std=self.dcls_heterogeneous_std,
                                     )(x)
                 elif self.conv_layer == 'conv':
