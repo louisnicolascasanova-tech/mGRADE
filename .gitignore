@@ -3,3 +3,4 @@ requirements_non_critical.txt
 /main/__pycache__/
 data/*
 __pycache__/*
+wandb_api_key.txt

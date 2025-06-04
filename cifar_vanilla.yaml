@@ -1,4 +1,4 @@
-seed: 0
+seed: 3
 mem_frac: 0.5
 n_epochs: 100
 batch_size: 32
@@ -16,25 +16,25 @@ layer_skip: False
 element_skip: True
 # RECURRENT
 enable_rec: True
-rec_act: relu
+rec_act: 'relu' # 'relu', 'tanh', 'gelu', 'linear'
 # CONVOLUTION
-enable_conv: True
-conv: 'conv' # 'dcls', 'conv', ~
-kernel_size: 4
+enable_conv: False
+conv: ~ # 'dcls', 'conv'
+kernel_size: ~
 init_std: ~ # DCLS
 delay_type: ~ # DCLS: 'synaptic', 'axonal'
 delay_kernel: ~ # DCLS: 'gaussian'
-wavenet_dilation: False # means LERF
-dilation_schedule: ~ # 'clip', 'wrap', ~
-dilation_offset: ~
-constant_dilation: 2 # 1, 2, 4, ... LERF
+wavenet_dilation: ~ # ~, False, True ; ~ or False --> LERF, True --> EERF
+dilation_schedule: ~ # EERF: 'clip', 'wrap', ~
+dilation_offset: ~ # EERF
+constant_dilation: ~ # LERF
 kernel_n_elems: ~ # DCLS
 heterogeneous_weights: ~ # DCLS
-heterogeneous_positions: True # DCLS
+heterogeneous_positions: ~ # DCLS
 heterogeneous_std: ~ # DCLS
 train_weights: ~ # DCLS
-train_positions: ~
-train_std: ~
+train_positions: ~ # DCLS
+train_std: ~ # DCLS
 # CHANNEL MIXING
 enable_cm: True
 channel_mixing: 'mlp'  # 'glu', 'mlp', ~
@@ -50,3 +50,5 @@ do_rate: 0
 reg_factor: 0
 # Wandb gradients
 wandb_gradients: False
+
+

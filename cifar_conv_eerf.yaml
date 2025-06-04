@@ -16,7 +16,7 @@ layer_skip: False
 element_skip: True
 # RECURRENT
 enable_rec: True
-rec_act: gelu # 'relu', 'tanh', 'gelu', 'linear'
+rec_act: relu # 'relu', 'tanh', 'gelu', 'linear'
 # CONVOLUTION
 enable_conv: True
 conv: 'conv' # 'dcls', 'conv'
@@ -37,9 +37,9 @@ train_positions: ~ # DCLS
 train_std: ~ # DCLS
 # CHANNEL MIXING
 enable_cm: True
-channel_mixing: 'glu'  # 'glu', 'mlp', ~
-cm_act: ~ # 'relu', 'gelu', 'linear'
-glu_type: 'full' # 'full', 'candidate', 'gate'
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'relu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
 # COMPRESSION
 latent_dim: ~
 comp_act: ~ # 'relu', 'gelu', 'linear'

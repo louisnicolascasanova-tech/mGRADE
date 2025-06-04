@@ -82,7 +82,8 @@ def main(args):
     steps_per_epoch = len(trainloader) 
     lr_map, lr_fn = create_learning_rate_map(args, steps_per_epoch)
     sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
-    state, _, _ = create_train_state(**sim_args)
+    state, n_params, _ = create_train_state(**sim_args)
+    wandb.log({"n_params": n_params})
     # print(state.opt_state)
     del lr_map, sim_args
 
@@ -186,13 +187,18 @@ def main(args):
         val_loss, val_acc  = validate(state, model_cls, val_loader)
         if val_acc > best_val_acc + improvement:
             best_val_acc = val_acc
-            if best_val_acc > 0.94: improvement = 0.001 # 0.1%
+            best_val_acc_loss = val_loss
+            if args.dataset == 'mnist':
+                if best_val_acc > 0.94: improvement = 0.001 # 0.1%
+            elif args.dataset == 'cifar':
+                if 0.8 > best_val_acc > 0.70: improvement = 0.005 # 0.5%
+                elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
             test_loss, test_acc = validate(state, model_cls, testloader)
             checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
-        wandb.log({"train_loss": train_loss, "train_acc": train_acc, "val_loss": val_loss, "val_acc": val_acc, "test_loss": test_loss, "test_acc": test_acc})
+        wandb.log({"train_loss": train_loss, "train_acc": train_acc, "val_loss": val_loss, "val_acc": val_acc, "test_loss": test_loss, "test_acc": test_acc, "best_val_acc": best_val_acc, "best_val_acc_loss": best_val_acc_loss})
         train_losses.append(train_loss)
         train_accuracies.append(train_acc)
         val_losses.append(val_loss)
@@ -206,8 +212,6 @@ def main(args):
         if epoch == args.n_epochs*args.warmup_frac: 
             print("Saving the warmed up model")
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
-
-
 
 
     # Save training dynamics
@@ -224,7 +228,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a GRU model")
     parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
-    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
+    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     args_cli = parser.parse_args()
 
     def parse_args():
@@ -242,11 +246,20 @@ if __name__ == "__main__":
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
     os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"
-    os.environ["WANDB_API_KEY"] = "26abb11684a03fc09307300eba9bc9cd3c71e4f0"
-    os.environ["WANDB_NOTEBOOK_NAME"] = "/home/tristan/pcRNN/flax4b_minGRU_heinsen_compression_wandb.ipynb"
+
+    # check if the wandb_api_key.txt file exists
+    if not os.path.exists("wandb_api_key.txt"):
+        print("\n")
+        raise FileNotFoundError("Please create a wandb_api_key.txt file with your WANDB API key.")
+    # Read WANDB API key from external file
+    with open("wandb_api_key.txt", "r") as f:
+        os.environ["WANDB_API_KEY"] = f.read().strip()
+
+    file_path = os.path.abspath(__file__)
+    os.environ["WANDB_NOTEBOOK_NAME"] = file_path
 
     wandb.login() # 26abb11684a03fc09307300eba9bc9cd3c71e4f0
-    wandb.init(project="minGRU_modular", name='gen')
+    wandb.init(project="DenGRU_general", name='gen')
     wandb.config.update(args)
 
 
