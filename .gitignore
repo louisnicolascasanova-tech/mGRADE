@@ -1,0 +1,5 @@
+main/data/
+requirements_non_critical.txt
+/main/__pycache__/
+data/*
+__pycache__/*

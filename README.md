@@ -1,39 +1,28 @@
-# LearningJAX
+# Den-MinGRU
 
-`eqx1_Linear.ipynb`:
-- eqx.Linear with autograd
-- writing a custom linear layer with jax (abc.ABC, abc.abstractmethod, @dataclasses.dataclass) (all eqx.modules are written in this way)
-- `py1_decorators.ipynb`: essentially a decorator is a wrapper function which adds (modifies) functionality to the original function
-- `py2_dataclasses.ipynb`:
-  - abstract classes are meant to be inherited by other classes
-  - abstract methods are meant to enforce the overwritting by the inheriting classes 
-  - the dataclass decorator is a shortcut to create classes with __init__, __repr__, __eq__, __hash__ methods
+# Backbone
+...
+# MinGRU
+...
+# DCLS
+...
+# Running the code
+The configuration of each experiment is written in a specific `yaml` file. 
+- `cifar_conv_eerf.yaml`: backbone with wavenet TCN style
+- `cifar_conv_lerf.yaml`: backbone with vanilla TCN style
+- `cifar_dcls.yaml`: DCLS style
+- `cifar_tcn.yaml`: pure vanilla TCN (MISSING)
+- `cifar_wavnenet.yaml`: pure wavenet (MISSING)
 
-`jax0_types.ipynb`: 
-- jax.Array and jnp.ndarray are the same
-- an array with one element has a shape of (1,) while the value of the element is a scalar and has a shape of ()
+This organization allows to modify the independent paramters (depth, width, kernel size ...) directly in the `yaml`, while keeping the dependent parameters (conv_mode, conv_schedule ...) already set in the different `yaml` files.
 
-`jax1_pytrees.ipynb`:
-- pytrees: lists, tuples, dicts, namedtuple, None, OrderedDict, dataclasses
-- can create custom pytrees with tree_flatten and tree_unflatten
-- instance.tree_flatten() and jax.tree_util.tree_flatten(instance) are essentially the same while having one difference: 
-    - instance.tree_flatten() returns a tuple of trees and the auxiliary data
-    - jax.tree_util.tree_flatten(instance) returns a list of trees and the auxiliary data accompanied by the treedef
+**Running the code**: 
 
-`jax2_jit.ipynb`: basic usage of jax.jit --> <font color='red'> TODO </font>
-- asynchronous dispatch: jax offloads the computation to the accelerator and returns a future so the main thread can continue (to time we need to use `block_until_ready`)
-- tracing: jaspr and static arguments and static operations (using numpy)
-
-`jax3_jit_classes.ipynb`:
-- you cannot jit a class method directly, the tracer will consider the class attributes as constants
-- workaround: use a wrapper function to which you pass the class parameters 
-    - the wrapper will unflatten the instance
-    - you can then return the modified instance parameters and modify the instance outside the wrapper 
-
-`eqx2_CNN.ipynb`, `eqx2b_CNN_BN.ipynb`, `eqx3_RNN.ipynb`: running the examples from Equinox tutorial
-
-## Learning by doing
-`ex1_heinsen_affine_cumsum.ipynb`: implementing Efficient Parallelization of a Ubiquitous Sequential Computation, Franz A. Heinsen (2023)
-- implementing the affine cumsum in a vanilla way
-- implementing Heinsen formula
-- studying the stability issues <font color='red'> TODO </font>
+``` bash
+python main.py --dataset <dataset_name> --gpu <gpu_id> --conv_mode <conv_mode> 
+```
+```python
+dataset_name = 'mnist' or 'cifar'
+gpu_id = 0 or 1 or 2 or 3
+conv_mode = 'dcls' or 'conv_eerf' or 'conv_lerf'
+```
