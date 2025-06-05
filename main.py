@@ -68,7 +68,7 @@ def main(args):
         n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
         encoder=args.encoder,
         layer_skip=args.layer_skip, element_skip=args.element_skip,
-        enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, 
+        enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
         wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=dilation_boundary,
         dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
         dcls_fft=False, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
@@ -189,7 +189,7 @@ def main(args):
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
             if args.dataset == 'mnist':
-                if best_val_acc > 0.94: improvement = 0.001 # 0.1%
+                if best_val_acc > 0.94: improvement = 0.0005 # 0.05%
             elif args.dataset == 'cifar':
                 if 0.8 > best_val_acc > 0.70: improvement = 0.005 # 0.5%
                 elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
@@ -229,6 +229,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
+    parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     args_cli = parser.parse_args()
 
     def parse_args():
@@ -242,6 +243,8 @@ if __name__ == "__main__":
     # add the CLI arguments to the args object
     args.dataset = args_cli.dataset
     args.gpu = args_cli.gpu
+    if args_cli.seed is not None:
+        args.seed = args_cli.seed
     
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
