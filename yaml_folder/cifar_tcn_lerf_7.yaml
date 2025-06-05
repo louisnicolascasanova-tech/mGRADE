@@ -1,0 +1,52 @@
+seed: 0
+mem_frac: 0.5
+n_epochs: 100
+batch_size: 32
+lr: 0.004
+scheduler: True
+alpha_cosine: 0
+warmup_frac: 0.5
+weight_decay: 0.1
+n_layers: 6
+hidden_dim: 32
+# ENCODER
+encoder: True
+# SKIP
+layer_skip: False
+element_skip: True
+# RECURRENT
+enable_rec: False
+rec_act: ~
+# CONVOLUTION
+enable_conv: True
+conv: 'conv' # 'dcls', 'conv', ~
+kernel_size: 8
+init_std: ~ # DCLS
+delay_type: ~ # DCLS: 'synaptic', 'axonal'
+delay_kernel: ~ # DCLS: 'gaussian'
+wavenet_dilation: False # means LERF
+dilation_schedule: ~ # 'clip', 'wrap', ~
+dilation_offset: ~
+constant_dilation: 1 # 1, 2, 4, ... LERF
+kernel_n_elems: ~ # DCLS
+heterogeneous_weights: ~ # DCLS
+heterogeneous_positions: ~ # DCLS
+heterogeneous_std: ~ # DCLS
+train_weights: ~ # DCLS
+train_positions: ~
+train_std: ~
+# CHANNEL MIXING
+enable_cm: True
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'relu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
+# COMPRESSION
+latent_dim: ~
+comp_act: ~ # 'relu', 'gelu', 'linear'
+# NORMALIZATION
+postnorm: True
+# REGULARIZATION
+do_rate: 0
+reg_factor: 0
+# Wandb gradients
+wandb_gradients: False
