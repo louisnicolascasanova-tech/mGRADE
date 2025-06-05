@@ -141,13 +141,13 @@ class HeinsenMinGRULayer(nn.Module):
             if self.layer_act == 'tanh':
                 out = nn.tanh(out_preact) # out: (784, 10)
             elif self.layer_act == 'sigmoid':
-                out = nn.sigmoid(out_preact)
+                out = nn.sigmoid((out_preact-0.5)*10)
             elif self.layer_act == 'relu':
-                out = nn.relu(out_preact)
+                out = nn.relu(out_preact-1)
             elif self.layer_act == 'linear':
                 out = out_preact
             elif self.layer_act == 'gelu':
-                out = nn.gelu(out_preact)
+                out = nn.gelu(out_preact-1)
             else: 
                 raise ValueError(f"Unknown activation type: {self.layer_act}")
             # define the dropout layer
@@ -506,12 +506,15 @@ class HeinsenMinGeneralGRULayer(nn.Module):
             z_preact, h_tilde_preact = jnp.split(z_htilde, 2, axis=-1) # z_preact and h_tilde_preact: (784, 64)
             # z_preact = DCLSLayer(kernel_size=50, dim_out=self.hidden_dim, dim_in=self.hidden_dim)(z_preact) 
             h_new = vj_heinsen_update(z_preact, h_tilde_preact) # h_new: (784, 64)
+            # h_new needs to be scaled and shifted for the nonlinear activation to work properly
             if self.rec_act == 'linear':
                 out = h_new
+            elif self.rec_act == 'sigmoid':
+                out = nn.sigmoid((h_new-0.5)*10)
             elif self.rec_act == 'gelu':
-                out = nn.gelu(h_new)
+                out = nn.gelu(h_new-1)
             elif self.rec_act == 'relu':
-                out = nn.relu(h_new)
+                out = nn.relu(h_new-1)
             return (h_new, z_preact, h_tilde_preact, out)
         #{'h_new': h_new, 'z_preact': z_preact, 'h_tilde_preact': h_tilde_preact, 'out': out, 'out_preact': out_preact}
         
@@ -534,6 +537,7 @@ class RNN_General_Backbone(nn.Module):
     enable_conv: bool = True
     conv_layer: str = 'dcls' # 'dcls', 'conv', None
     kernel_size: int = 50
+    kernel_n_elems: int = 1 # number of elements in the kernel, for synaptic delays this is the number of delays
     dcls_std: float = 0.7
     dcls_type: str = 'synaptic' # 'synaptic', 'axonal'
     dcls_kernel: str = 'gaussian' # 'impulse', WARNING: ONLY "gaussian" is implemented for now
@@ -583,7 +587,7 @@ class RNN_General_Backbone(nn.Module):
                     conv_skip = x
 
                 if self.conv_layer == 'dcls':
-                    x = DCLSLayer(kernel_size=self.kernel_size, dim_out=x.shape[-1], dim_in=x.shape[-1], 
+                    x = DCLSLayer(kernel_size=self.kernel_size, dim_out=x.shape[-1], dim_in=x.shape[-1], kernel_n_elems=self.kernel_n_elems,
                                     fft=self.dcls_fft, delay_type=self.dcls_type, delay_kernel=self.dcls_kernel,
                                     init_std=self.dcls_std, 
                                     heterogeneous_weights=self.dcls_heterogeneous_weights,
