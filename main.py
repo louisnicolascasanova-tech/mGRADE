@@ -233,7 +233,7 @@ if __name__ == "__main__":
     args_cli = parser.parse_args()
 
     def parse_args():
-        with open(f"{args_cli.dataset}_{args_cli.conv_mode}_{args_cli.file_nb}.yaml", "r") as file:
+        with open(f"yaml_folder/{args_cli.dataset}_{args_cli.conv_mode}_{args_cli.file_nb}.yaml", "r") as file:
             config = yaml.safe_load(file)
         return argparse.Namespace(**config)
 
