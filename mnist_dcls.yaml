@@ -22,7 +22,7 @@ enable_conv: True
 conv: 'dcls' # 'dcls', 'conv', ~
 kernel_size: 64
 init_std: 0.7
-delay_type: 'synaptic' # 'synaptic', 'axonal'
+delay_type: 'dendritic' # 'synaptic', 'axonal', 'dendritic'
 delay_kernel: 'gaussian'
 wavenet_dilation: ~ # means LERF
 dilation_schedule: ~ # 'clip', 'wrap', ~
