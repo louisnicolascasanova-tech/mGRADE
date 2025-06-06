@@ -1,8 +1,8 @@
 seed: 0
 mem_frac: 0.5
-n_epochs: 150
+n_epochs: 100
 batch_size: 32
-lr: 0.01 # 0.004
+lr: 0.004 # 0.004
 scheduler: True
 alpha_cosine: 0
 warmup_frac: 0.3
