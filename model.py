@@ -360,16 +360,17 @@ class DCLSLayer(nn.Module):
             x = x[None, :, :] # (1, seq_len, dim_in)
             # print(f'x.shape={x.shape}')
             # print(f'self.kernel.shape={self.kernel.shape}')
-            if self.delay_type == 'axonal':
-                # print(x.shape)
-                out = convolve_dcls(x, self.kernel[:, None, :], self.dim_in) # kernel: (dim_out, dim_in/group=1, seq_len)
-                out = out[:, :-1]
-                # print(out.shape)
-            else:
+            if self.delay_type == 'synaptic':
                 # print(f'{x.shape=}')
                 # print(f'{self.kernel.shape=}')
                 out = convolve_dcls(x, self.kernel)
                 out = out[:, :-1]
+            else:
+                # print(x.shape)
+                out = convolve_dcls(x, self.kernel[:, None, :], self.dim_in) # kernel: (dim_out, dim_in/group=1, seq_len)
+                out = out[:, :-1]
+                # print(out.shape)
+                
             out = out.squeeze(0)
         return out
 
@@ -504,7 +505,7 @@ class HeinsenMinGeneralGRULayer(nn.Module):
 
             '''
             if self.skip_recurrent_dense:
-                z_htilde - x
+                z_htilde = x
             else:
                 z_htilde = nn.Dense(2*self.hidden_dim, name='Dense_x')(x) # z_htilde: (784, 2*64), assuming hidden_dim = 64
             z_preact, h_tilde_preact = jnp.split(z_htilde, 2, axis=-1) # z_preact and h_tilde_preact: (784, 64)
@@ -593,10 +594,12 @@ class RNN_General_Backbone(nn.Module):
                     conv_skip = x
 
                 if self.conv_layer == 'dcls':
+                    output_dim = self.hidden_dim[i]
                     if self.dcls_type == 'dendritic':
-                        x = nn.Dense(2*self.hidden_dim, name='Dense_x')(x)
+                        x = nn.Dense(2 * self.hidden_dim[i])(x)
                         skip_recurrent_dense = True
-                    x = DCLSLayer(kernel_size=self.kernel_size, dim_out=x.shape[-1], dim_in=x.shape[-1], kernel_n_elems=self.kernel_n_elems,
+                        output_dim = 2 * self.hidden_dim[i]
+                    x = DCLSLayer(kernel_size=self.kernel_size, dim_out=output_dim, dim_in=x.shape[-1], kernel_n_elems=self.kernel_n_elems,
                                     fft=self.dcls_fft, delay_type=self.dcls_type, delay_kernel=self.dcls_kernel,
                                     init_std=self.dcls_std, 
                                     heterogeneous_weights=self.dcls_heterogeneous_weights,
