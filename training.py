@@ -10,8 +10,21 @@ import wandb
 from flax.traverse_util import flatten_dict, unflatten_dict
 
 @jax.jit
-def update_model(state, grads):
-    return state.apply_gradients(grads=grads)
+def update_model(state, grads, kernel_size):
+    state = state.apply_gradients(grads=grads)
+    def clip_negative_positions(params):
+        def clip_fn(path, v):
+            # path is a tuple of keys, e.g. ('Dense_0', 'DCLS', 'positions')
+            if path[-1] == 'positions':
+                v = jnp.where(v < 0, 0, v)
+                v = jnp.where(v > kernel_size, kernel_size, v)
+            return v
+        flat_params = flatten_dict(params, sep='/')
+        clipped_flat = {k: clip_fn(k.split('/'), v) for k, v in flat_params.items()}
+        return unflatten_dict(clipped_flat, sep='/')
+
+    state = state.replace(params=clip_negative_positions(state.params))
+    return state
 
 
 @partial(jax.jit, static_argnames=('model','reg_factor'))
@@ -48,7 +61,7 @@ def map_nested_fn(fn):
 
     return map_fn
 
-def run_epoch(state, model_cls, train_dl, key, reg_factor, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
+def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
               wandb_gradients=False):
     """Train for a single epoch."""
     model = model_cls(training=True)
@@ -104,7 +117,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, lim_batch=None, keys_
             break_flag = True
             break
         # start = time()
-        state = update_model(state, grads)
+        state = update_model(state, grads, kernel_size)
         grads_previous = grads
         # print(f"lr: {lr_fn(state.step)}")
         # stop = time()
