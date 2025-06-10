@@ -230,10 +230,11 @@ if __name__ == "__main__":
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
+    parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
     args_cli = parser.parse_args()
 
     def parse_args():
-        with open(f"{args_cli.dataset}_{args_cli.conv_mode}.yaml", "r") as file:
+        with open(f"yaml_folder/{args_cli.dataset}_{args_cli.conv_mode}_{args_cli.file_nb}.yaml", "r") as file:
             config = yaml.safe_load(file)
         return argparse.Namespace(**config)
 

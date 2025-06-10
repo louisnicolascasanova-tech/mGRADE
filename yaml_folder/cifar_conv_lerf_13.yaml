@@ -20,14 +20,14 @@ rec_act: relu
 # CONVOLUTION
 enable_conv: True
 conv: 'conv' # 'dcls', 'conv', ~
-kernel_size: 4
+kernel_size: 32
 init_std: ~ # DCLS
 delay_type: ~ # DCLS: 'synaptic', 'axonal'
 delay_kernel: ~ # DCLS: 'gaussian'
 wavenet_dilation: False # means LERF
 dilation_schedule: ~ # 'clip', 'wrap', ~
 dilation_offset: ~
-constant_dilation: 2 # 1, 2, 4, ... LERF
+constant_dilation: 8 # 1, 2, 4, ... LERF
 kernel_n_elems: ~ # DCLS
 heterogeneous_weights: ~ # DCLS
 heterogeneous_positions: True # DCLS
