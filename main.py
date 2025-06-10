@@ -21,7 +21,7 @@ import yaml
 import wandb
 
 def main(args):
-    SEED = 0
+    SEED = args.seed if args.seed is not None else 42
     # fix random seed
     key = jax.random.PRNGKey(SEED)
     torch.manual_seed(SEED)

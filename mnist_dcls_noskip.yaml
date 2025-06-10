@@ -12,7 +12,7 @@ hidden_dim: 15
 # ENCODER
 encoder: True
 # SKIP
-layer_skip: True
+layer_skip: False
 element_skip: False
 # RECURRENT
 enable_rec: True
@@ -28,11 +28,11 @@ wavenet_dilation: ~ # means LERF
 dilation_schedule: ~ # 'clip', 'wrap', ~
 dilation_offset: ~
 constant_dilation: ~
-kernel_n_elems: 4 # DCLS
+kernel_n_elems: 1 # DCLS
 heterogeneous_weights: True # DCLS
 heterogeneous_positions: True # DCLS
 heterogeneous_std: True # DCLS
-train_weights: True # DCLS
+train_weights: False # DCLS
 train_positions: True
 train_std: False
 # CHANNEL MIXING
