@@ -8,7 +8,7 @@ alpha_cosine: 0
 warmup_frac: 0.3
 weight_decay: 0.01
 n_layers: 6
-hidden_dim: 15
+hidden_dim: 12
 # ENCODER
 encoder: False
 # SKIP
