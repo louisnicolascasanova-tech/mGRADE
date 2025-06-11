@@ -16,10 +16,10 @@ encoder: True
 layer_skip: False
 element_skip: True
 # RECURRENT
-enable_rec: True
+enable_rec: False
 rec_act: relu
 # CONVOLUTION
-enable_conv: False
+enable_conv: True
 conv: 'conv' # 'dcls', 'conv', ~
 kernel_size: 4
 # LERF and EERF
