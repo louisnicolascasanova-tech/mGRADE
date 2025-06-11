@@ -1,3 +1,4 @@
+# This DCLS YAML implements: DCLS homP_fixedOnesW
 seed: 0
 mem_frac: 0.5
 n_epochs: 100
@@ -15,26 +16,31 @@ encoder: True
 layer_skip: False
 element_skip: True
 # RECURRENT
-enable_rec: False
-rec_act: ~
+enable_rec: True
+rec_act: relu
 # CONVOLUTION
 enable_conv: True
-conv: 'conv' # 'dcls', 'conv', ~
-kernel_size: 4
-init_std: ~ # DCLS
-delay_type: ~ # DCLS: 'synaptic', 'axonal'
-delay_kernel: ~ # DCLS: 'gaussian'
-wavenet_dilation: False # means LERF
+conv: 'dcls' # 'dcls', 'conv', ~
+kernel_size: 32
+# LERF and EERF
+wavenet_dilation: False # False means LERF, True means EERF
+# LERF
+constant_dilation: ~ 
+# EERF
 dilation_schedule: ~ # 'clip', 'wrap', ~
 dilation_offset: ~
-constant_dilation: 8 # 1, 2, 4, ... LERF
-kernel_n_elems: ~ # DCLS
-heterogeneous_weights: ~ # DCLS
-heterogeneous_positions: ~ # DCLS
-heterogeneous_std: ~ # DCLS
-train_weights: ~ # DCLS
-train_positions: ~
-train_std: ~
+dilation_boundary: ~
+# DCLS
+delay_type: 'axonal' # DCLS: 'synaptic', 'axonal'
+delay_kernel: 'gaussian' # DCLS: 'gaussian'
+init_std: 0.7 # DCLS
+kernel_n_elems: 8 
+heterogeneous_weights: False 
+heterogeneous_positions: False 
+heterogeneous_std: False 
+train_weights: False 
+train_positions: True
+train_std: False
 # CHANNEL MIXING
 enable_cm: True
 channel_mixing: 'mlp'  # 'glu', 'mlp', ~

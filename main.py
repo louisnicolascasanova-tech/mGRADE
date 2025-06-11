@@ -48,19 +48,27 @@ def main(args):
     print(batch_x.shape, batch_y.shape)
     print(batch_y.dtype)
 
-    if args.wavenet_dilation:
-        if args.dataset == 'cifar':
-            if args.kernel_size <= 32: 
-                dilation_boundary = 5
-            elif args.kernel_size == 64:
-                dilation_boundary = 4
-        elif args.dataset == 'mnist':
-            if args.kernel_size <= 32:
-                dilation_boundary = 4
-            elif args.kernel_size == 64:
-                dilation_boundary = 3
-    else:
-        dilation_boundary = None
+    # if args.wavenet_dilation:
+    #     if args.dataset == 'cifar':
+    #         if args.kernel_size == 4:
+    #             dilation_boundary = 7+1
+    #         elif args.kernel_size == 8:
+    #             dilation_boundary = 6+1
+    #         elif args.kernel_size == 16:
+    #             dilation_boundary = 5+1
+    #         elif args.kernel_size == 32: 
+    #             dilation_boundary = 4+1
+    #         elif args.kernel_size == 64:
+    #             dilation_boundary = 3+1
+    #     elif args.dataset == 'mnist':
+    #         if args.kernel_size <= 32:
+    #             dilation_boundary = 4
+    #         elif args.kernel_size == 64:
+    #             dilation_boundary = 3
+    # else:
+    #     dilation_boundary = None
+
+    
     
 
     model_cls = partial(
@@ -69,10 +77,12 @@ def main(args):
         encoder=args.encoder,
         layer_skip=args.layer_skip, element_skip=args.element_skip,
         enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
-        wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=dilation_boundary,
+        wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
         dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
         dcls_fft=False, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
-        dcls_heterogeneous_weights=args.heterogeneous_weights, dcls_heterogeneous_std=args.heterogeneous_std,
+        dcls_heterogeneous_weights=args.heterogeneous_weights, 
+        dcls_heterogeneous_positions=args.heterogeneous_positions,
+        dcls_heterogeneous_std=args.heterogeneous_std,
         enable_rec=args.enable_rec, rec_act=args.rec_act,
         enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
         latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
@@ -113,7 +123,9 @@ def main(args):
     if args.conv == 'dcls':
         delay_type_str = 'syn' if args.delay_type == 'synaptic' else 'ax'
         delay_ker_str = 'gaus' if args.delay_kernel == 'gaussian' else 'exp'
-        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}'
+        hete_pos = 'T' if args.heterogeneous_positions else 'F'
+        hete_pos_str = f'hetP{hete_pos}'
+        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}'
     else:
         wavenet_str = 'eerf' if args.wavenet_dilation else 'lerf'
         schedule_str = args.dilation_schedule if args.dilation_schedule is not None else 'F'
@@ -178,7 +190,7 @@ def main(args):
     for epoch in range(args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
-            run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, 
+            run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
                         lr_fn=lr_fn, wandb_gradients=args.wandb_gradients)
         aux_dict_training.append(aux_dict_epoch)
@@ -189,7 +201,7 @@ def main(args):
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
             if args.dataset == 'mnist':
-                if best_val_acc > 0.94: improvement = 0.0005 # 0.05%
+                if best_val_acc > 0.94: improvement = 0.001 # 0.1%
             elif args.dataset == 'cifar':
                 if 0.8 > best_val_acc > 0.70: improvement = 0.005 # 0.5%
                 elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
@@ -228,7 +240,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a GRU model")
     parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
-    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
+    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
     args_cli = parser.parse_args()
@@ -309,3 +321,15 @@ if __name__ == "__main__":
     # k=64, constant dilation of 4: 1528 -> 1528 -> 1528 -> 1528 -> 1528 -> 1528
     # ... maximum dilation is 8
 
+
+
+    # local receptive field size:
+    # R = 1 + (K - 1) * d
+    #  i | 0   | 1   | 2   | 3   | 4    | 5    | 6    | 7     | 8     | 9     | 10    |
+    #  K | d=1 | d=2 | d=4 | d=8 | d=16 | d=32 | d=64 | d=128 | d=256 | d=512 | d=1024|
+    #  4 | 5   | 9   | 13  | 25  | 49   | 97   | 193  | 385   | 769   | 1537  | 3073  |
+    #  8 | 9   | 17  | 29  | 57  | 113  | 225  | 449  | 897   | 1793  | 3585  | 7169  |
+    #  16| 17  | 31  | 61  | 121 | 241  | 481  | 961  | 1921  | 3841  | 7681  | 15361 |
+    #  32| 33  | 63  | 125 | 249 | 497  | 993  | 1985 | 3969  | 7937  | 15873 | 31745 |
+    #  64| 65  | 127 | 253 | 505 | 1009 | 2017 | 4033 | 8065  | 16129 | 32257 | 64513 |
+    # 128| 129 | 255 | 509 |1017 | 2033 | 4065 | 8129 | 16257 | 32513 | 65025 |130049 |

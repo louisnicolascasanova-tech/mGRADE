@@ -1,3 +1,4 @@
+# This TCN LERF YAML implements: k=8, enable_rec=False, wavenet_dilation=False, constant_dilation=1
 seed: 0
 mem_frac: 0.5
 n_epochs: 100
@@ -15,24 +16,29 @@ encoder: True
 layer_skip: False
 element_skip: True
 # RECURRENT
-enable_rec: False
-rec_act: ~
+enable_rec: True
+rec_act: relu
 # CONVOLUTION
-enable_conv: True
+enable_conv: False
 conv: 'conv' # 'dcls', 'conv', ~
 kernel_size: 4
-init_std: ~ # DCLS
-delay_type: ~ # DCLS: 'synaptic', 'axonal'
-delay_kernel: ~ # DCLS: 'gaussian'
-wavenet_dilation: False # means LERF
+# LERF and EERF
+wavenet_dilation: False # False means LERF, True means EERF
+# LERF
+constant_dilation: 1 
+# EERF
 dilation_schedule: ~ # 'clip', 'wrap', ~
 dilation_offset: ~
-constant_dilation: 1 # 1, 2, 4, ... LERF
-kernel_n_elems: ~ # DCLS
-heterogeneous_weights: ~ # DCLS
-heterogeneous_positions: ~ # DCLS
-heterogeneous_std: ~ # DCLS
-train_weights: ~ # DCLS
+dilation_boundary: ~ # depends on kernel_size: 4 -> 8, 8 -> 7, 16 -> 6, 32 -> 5
+# DCLS
+delay_type: ~ # DCLS: 'synaptic', 'axonal'
+delay_kernel: ~ # DCLS: 'gaussian'
+init_std: ~ # DCLS
+kernel_n_elems: ~  
+heterogeneous_weights: ~
+heterogeneous_positions: ~
+heterogeneous_std: ~ 
+train_weights: ~ 
 train_positions: ~
 train_std: ~
 # CHANNEL MIXING

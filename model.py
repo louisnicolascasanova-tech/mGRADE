@@ -386,7 +386,9 @@ class CausalDepthWiseConv1d(nn.Module):
 
         x = x[None, :, :]  # (1, seq_len, dim_in)
         # FULL convolution: manual padding
+        print(self.dilation) # needed for debugging 
         padding = self.dilation * (self.k_len - 1)
+        print(f'{padding=}') # needed for debugging
         pad = [(0, 0), (padding, padding), (0, 0)]  # (batch, length, channels)
         x_padded = jnp.pad(x, pad)
         print(f'{x_padded.shape=}')
