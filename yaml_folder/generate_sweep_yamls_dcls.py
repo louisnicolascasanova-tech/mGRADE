@@ -150,4 +150,4 @@ for kernel_size, kernel_n_elems in kernel_configs.items():
         yaml.dump(config, f, sort_keys=False)
     print(f"Generated {filepath}")
 
-print("All sweep YAMLs generated.") 
+print("All DCLS sweep YAMLs generated.") 

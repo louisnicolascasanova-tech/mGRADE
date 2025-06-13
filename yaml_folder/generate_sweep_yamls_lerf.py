@@ -7,9 +7,9 @@ parser.add_argument('--hidden_dim', type=int, default=32, help='Hidden dimension
 parser.add_argument('--mode', type=str, choices=['tcn', 'rnn'], default='tcn', help="Prefix for YAML files: 'tcn' or 'rnn' (default: 'tcn')")
 args = parser.parse_args()
 
-# Directory to save YAML files
-yaml_dir = "yaml_folder"
-os.makedirs(yaml_dir, exist_ok=True)
+# # Directory to save YAML files
+# yaml_dir = "yaml_folder"
+# os.makedirs(yaml_dir, exist_ok=True)
 
 SEEDS = [0, 1, 2]
 # Kernel sizes and their allowed constant_dilation values
@@ -94,9 +94,10 @@ for kernel_size, dilations in kernel_configs.items():
     config["parameters"]["seed"] = {"values": FlowStyleList(SEEDS)} 
     config["parameters"]["constant_dilation"] = {"values": FlowStyleList(dilations)}
     filename = f"cifar_{args.mode}_lerf_wandb_{kernel_size}.yaml"
-    filepath = os.path.join(yaml_dir, filename)
+    # filepath = os.path.join(yaml_dir, filename)
+    filepath = filename  # Save in current directory
     with open(filepath, "w") as f:
         yaml.dump(config, f, sort_keys=False)
     print(f"Generated {filepath}")
 
-print("All sweep YAMLs generated.") 
+print("All LERF sweep YAMLs generated.") 

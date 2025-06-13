@@ -126,9 +126,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inference for GRU model")
-    parser.add_argument("--config", type=str, required=True, help="Path to YAML config file")
     parser.add_argument("--ckpt_dir", type=str, required=True, help="Path to checkpoint directory (the folder containing the checkpoint file)")
-    parser.add_argument("--seed", type=int, default=None, help="Random seed for reproducibility")
     # dataset
     parser.add_argument("--dataset", type=str, choices=['cifar', 'mnist'], default='cifar', help="Dataset to use for training")
     # gpu 
@@ -136,11 +134,11 @@ if __name__ == "__main__":
     args_cli = parser.parse_args()
 
     # Load config
-    with open(args_cli.config, "r") as file:
+    config_path = os.path.join(args_cli.ckpt_dir, "config.yaml") #
+    with open(config_path, "r") as file:
         config = yaml.safe_load(file)
     args = argparse.Namespace(**config)
     args.ckpt_dir = args_cli.ckpt_dir
-    args.seed = args_cli.seed
     args.dataset = args_cli.dataset
     args.warmup_epochs = args.n_epochs * args.warmup_frac
 

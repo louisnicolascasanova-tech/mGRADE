@@ -7,9 +7,9 @@ parser.add_argument('--hidden_dim', type=int, default=32, help='Hidden dimension
 parser.add_argument('--mode', type=str, choices=['tcn', 'rnn'], default='tcn', help="Prefix for YAML files: 'tcn' or 'rnn' (default: 'tcn')")
 args = parser.parse_args()
 
-# Directory to save YAML files
-yaml_dir = "yaml_folder"
-os.makedirs(yaml_dir, exist_ok=True)
+# # Directory to save YAML files
+# yaml_dir = "yaml_folder"
+# os.makedirs(yaml_dir, exist_ok=True)
 
 SEEDS = [0, 1, 2]
 # Map each kernel_size to its allowed dilation_offset values and corresponding dilation_boundary
@@ -94,7 +94,8 @@ for kernel_size, config_dict in kernel_configs.items():
     config["parameters"]["dilation_offset"] = {"values": FlowStyleList(config_dict["dilation_offset"])}
     config["parameters"]["dilation_boundary"] = {"value": config_dict["dilation_boundary"]}
     filename = f"cifar_{args.mode}_eerf_wandb_{kernel_size}.yaml"
-    filepath = os.path.join(yaml_dir, filename)
+    # filepath = os.path.join(yaml_dir, filename)
+    filepath = filename  # Save in the current directory
     with open(filepath, "w") as f:
         yaml.dump(config, f, sort_keys=False)
     print(f"Generated {filepath}")
