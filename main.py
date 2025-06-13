@@ -8,7 +8,7 @@ import optax
 import matplotlib.pyplot as plt
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset
+from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml
 from plots import plot_dynamics
 
 from model import BatchRNN_General
@@ -125,7 +125,7 @@ def main(args):
         delay_ker_str = 'gaus' if args.delay_kernel == 'gaussian' else 'exp'
         hete_pos = 'T' if args.heterogeneous_positions else 'F'
         hete_pos_str = f'hetP{hete_pos}'
-        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}'
+        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}{args.kernel_n_elems}'
     else:
         wavenet_str = 'eerf' if args.wavenet_dilation else 'lerf'
         schedule_str = args.dilation_schedule if args.dilation_schedule is not None else 'F'
@@ -161,12 +161,17 @@ def main(args):
         i += 1
     print(CKPT_DIR)
     print(CKPT_DIR)
+    os.makedirs(CKPT_DIR, exist_ok=True)
     RESULT_DIR = os.path.join(os.getcwd(), f"results/{id_sim}")
     print(RESULT_DIR)
     os.makedirs(RESULT_DIR, exist_ok=True)
     PLT_DIR = os.path.join(os.getcwd(), f"plots/{id_sim}")
     print(PLT_DIR)
     os.makedirs(PLT_DIR, exist_ok=True)
+
+    # Write configuration to YAML file
+    write_config_yaml(args, CKPT_DIR)
+
 
 
     train_losses = []
@@ -241,12 +246,16 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
+    parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
     args_cli = parser.parse_args()
 
     def parse_args():
-        with open(f"yaml_folder/{args_cli.dataset}_{args_cli.conv_mode}_{args_cli.file_nb}.yaml", "r") as file:
+        conv_str = f'{args_cli.conv_mode}'
+        if args_cli.conv_mode == 'dcls':
+            conv_str += f'_c{args_cli.dcls_config}'
+        with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml", "r") as file:
             config = yaml.safe_load(file)
         return argparse.Namespace(**config)
 
