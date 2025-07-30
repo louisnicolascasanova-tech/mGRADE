@@ -8,7 +8,7 @@ import optax
 import matplotlib.pyplot as plt
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml
+from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, create_lra_imdb_classification_dataset, prep_batch
 from plots import plot_dynamics
 
 from model import BatchRNN_General
@@ -43,11 +43,17 @@ def main():
 
     dataset_fns = {
         'cifar': create_cifar_gs_classification_dataset,
-        'mnist': create_mnist_classification_dataset
+        'mnist': create_mnist_classification_dataset,
+        'imdb': create_lra_imdb_classification_dataset
     }
-    trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+    if args.dataset in ['cifar', 'mnist']:
+        trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+        batch_x, batch_y = next(iter(testloader)) # used for the tabulate function
+    elif args.dataset == 'imdb':
+        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
+        batch = next(iter(testloader))
+        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
 
-    batch_x, batch_y = next(iter(testloader))
     print(batch_x.shape, batch_y.shape)
     print(batch_y.dtype)
 
@@ -200,11 +206,11 @@ def main():
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
-                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients)
+                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, in_dim=IN_DIM, seq_len=SEQ_LENGTH)
         aux_dict_training.append(aux_dict_epoch)
         if break_flag:
             break
-        val_loss, val_acc  = validate(state, model_cls, val_loader)
+        val_loss, val_acc  = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES) # TODO: create a val loader for imdb
         if val_acc > best_val_acc + improvement:
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
@@ -238,7 +244,7 @@ def main():
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['rnn_dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
