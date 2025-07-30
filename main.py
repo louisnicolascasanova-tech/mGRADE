@@ -45,11 +45,11 @@ def main(args):
     }
     if args.dataset in ['cifar', 'mnist']:
         trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
-        batch_x, batch_y = next(iter(testloader))
+        batch_x, batch_y = next(iter(testloader)) # used for the tabulate function
     elif args.dataset == 'imdb':
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
-        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM)
+        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
 
     print(batch_x.shape, batch_y.shape)
     print(batch_y.dtype)
@@ -200,14 +200,17 @@ def main(args):
     test_acc = 0.0
     for epoch in range(args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
+        
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
                         lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, in_dim=IN_DIM, seq_len=SEQ_LENGTH)
         aux_dict_training.append(aux_dict_epoch)
+        
         if break_flag:
             break
-        val_loss, val_acc  = validate(state, model_cls, val_loader) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES)
+        
+        val_loss, val_acc  = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES) # TODO: create a val loader for imdb
         if val_acc > best_val_acc + improvement:
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
@@ -221,7 +224,9 @@ def main(args):
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
+        
         wandb.log({"train_loss": train_loss, "train_acc": train_acc, "val_loss": val_loss, "val_acc": val_acc, "test_loss": test_loss, "test_acc": test_acc, "best_val_acc": best_val_acc, "best_val_acc_loss": best_val_acc_loss})
+        
         train_losses.append(train_loss)
         train_accuracies.append(train_acc)
         val_losses.append(val_loss)

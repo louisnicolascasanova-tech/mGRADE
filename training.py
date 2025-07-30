@@ -75,9 +75,9 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     key, do_key = jax.random.split(key)
     grads_previous = None
     for batch in progress_bar:
-        if in_dim is None: 
+        if len(batch) == 2:  # If the batch is already preprocessed
             batch_x, batch_y = batch
-        else:
+        elif len(batch) == 3:  # If the batch contains mask
             batch_x, batch_y, mask = prep_batch(batch, seq_len, in_dim)
         # start = time()
         grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key)
@@ -160,7 +160,10 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim):
     model = model(training=False) # needed when using dropout
     losses, accuracies = [], []
     for batch_idx, batch in enumerate(testloader):
-        inputs, labels, _ = prep_batch(batch, seq_len, in_dim)
+        if len(batch) == 2:  # If the batch is already preprocessed
+            inputs, labels = batch
+        elif len(batch) == 3:  # If the batch contains mask
+            inputs, labels, _ = prep_batch(batch, seq_len, in_dim)
         loss, acc = eval_model(
             state, model, inputs, labels, out_dim # from S4D: , model, classification=classification
         )
