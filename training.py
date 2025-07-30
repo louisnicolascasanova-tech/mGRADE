@@ -8,6 +8,7 @@ from flax.training import train_state
 from time import time
 import wandb
 from flax.traverse_util import flatten_dict, unflatten_dict
+from utils import prep_batch
 
 @jax.jit
 def update_model(state, grads, kernel_size):
@@ -34,7 +35,7 @@ def apply_model(state, model, x, y, reg_factor, do_key):
     def loss_fn(params):
         net_dyn, out_hist = model.apply({'params': params}, x, rngs={'dropout': do_key})
         logits = out_hist.mean(axis=1)
-        one_hot = jax.nn.one_hot(y, 10)
+        one_hot = jax.nn.one_hot(y, model.out_dim)
         batch_loss = optax.softmax_cross_entropy(logits=logits, labels=one_hot)
         reg = 0.0
         for layers in net_dyn:
@@ -62,7 +63,7 @@ def map_nested_fn(fn):
     return map_fn
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
-              wandb_gradients=False):
+              wandb_gradients=False, in_dim=None, seq_len=None):
     """Train for a single epoch."""
     model = model_cls(training=True)
     epoch_loss = []
@@ -73,7 +74,11 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     break_flag = False
     key, do_key = jax.random.split(key)
     grads_previous = None
-    for batch_x, batch_y in progress_bar:
+    for batch in progress_bar:
+        if in_dim is None: 
+            batch_x, batch_y = batch
+        else:
+            batch_x, batch_y, mask = prep_batch(batch, seq_len, in_dim)
         # start = time()
         grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key)
         # stop = time()
@@ -135,14 +140,14 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     train_accuracy = np.mean(epoch_accuracy)
     return state, train_loss, train_accuracy, (break_flag, aux_dict_hist)
 
-@partial(jax.jit, static_argnames=('model'))
-def eval_model(state, model, images, labels):
+@partial(jax.jit, static_argnames=('model', 'out_dim'))
+def eval_model(state, model, images, labels, out_dim):
     """Computes gradients, loss and accuracy for a single batch."""
 
     def loss_fn(params):
         _, out_hist = model.apply({'params': params}, images)
         logits = out_hist.mean(axis=1)
-        one_hot = jax.nn.one_hot(labels, 10)
+        one_hot = jax.nn.one_hot(labels, out_dim)
         loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
         return loss, logits
 
@@ -150,13 +155,14 @@ def eval_model(state, model, images, labels):
     accuracy = jnp.mean(jnp.argmax(logits, -1) == labels)
     return loss, accuracy
 
-def validate(state, model, testloader):
+def validate(state, model, testloader, seq_len, in_dim, out_dim):
     # Compute average loss & accuracy
     model = model(training=False) # needed when using dropout
     losses, accuracies = [], []
-    for batch_idx, (inputs, labels) in enumerate(testloader):
+    for batch_idx, batch in enumerate(testloader):
+        inputs, labels, _ = prep_batch(batch, seq_len, in_dim)
         loss, acc = eval_model(
-            state, model, inputs, labels # from S4D: , model, classification=classification
+            state, model, inputs, labels, out_dim # from S4D: , model, classification=classification
         )
         losses.append(loss)
         accuracies.append(acc)
@@ -210,9 +216,10 @@ def create_learning_rate_map(args, steps_per_epoch):
     return lr_map, lr_fn
 
 
-def init_model(key, model_cls, dataset_version, seq_len, batch_size):
+def init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size):
     
-    init_x = jnp.ones((batch_size, seq_len, 1)) if dataset_version == "sequential" else jnp.ones((batch_size, jnp.sqrt(seq_len), jnp.sqrt(seq_len)))
+    
+    init_x = jnp.ones((batch_size, seq_len, in_dim)) if dataset_version == "sequential" else jnp.ones((batch_size, jnp.sqrt(seq_len), jnp.sqrt(seq_len)))
 
     model = model_cls(training=True)
     key, pkey, do_key = jax.random.split(key, 3)
@@ -220,10 +227,10 @@ def init_model(key, model_cls, dataset_version, seq_len, batch_size):
     return model, params
 
 
-def create_train_state(key, model_cls, lr_map, dataset_version, seq_len, batch_size, wd=0.05):
+def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len, batch_size, wd=0.05):
     
     """Creates initial `TrainState`."""
-    model, params = init_model(key, model_cls, dataset_version, seq_len, batch_size)
+    model, params = init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size)
     
     # Debugging: Print parameter structure
     print("Initialized parameter structure:", jax.tree_util.tree_map(jnp.shape, params))

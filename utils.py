@@ -10,8 +10,13 @@ from sklearn.metrics import confusion_matrix, classification_report
 import os
 import pandas as pd
 import yaml
+from typing import Union, Callable, Tuple
+from pathlib import Path
+from flax.linen import one_hot
+from lra import IMDB
 
 PX = 1/plt.rcParams['figure.dpi']
+DEFAULT_CACHE_DIR_ROOT = Path("./cache_dir/")
 
 
 
@@ -183,3 +188,127 @@ def write_config_yaml(args, CKPT_DIR):
         yaml.dump(config, file, default_flow_style=False, sort_keys=False)
     
     print(f"Configuration saved to: {config_path}")
+
+
+def make_data_loader(
+    dset,
+    dobj,
+    seed: int,
+    batch_size: int = 128,
+    shuffle: bool = True,
+    drop_last: bool = True,
+    collate_fn: callable = None,
+):
+    """
+
+    :param dset: 			(PT dset):		PyTorch dataset object.
+    :param dobj (=None): 	(AG data): 		Dataset object, as returned by A.G.s dataloader.
+    :param seed: 			(int):			Int for seeding shuffle.
+    :param batch_size: 		(int):			Batch size for batches.
+    :param shuffle:         (bool):			Shuffle the data loader?
+    :param drop_last: 		(bool):			Drop ragged final batch (particularly for training).
+    :return:
+    """
+
+    # Create a generator for seeding random number draws.
+    if seed is not None:
+        rng = torch.Generator()
+        rng.manual_seed(seed)
+    else:
+        rng = None
+
+    if dobj is not None:
+        assert collate_fn is None
+        collate_fn = dobj._collate_fn
+
+    # Generate the dataloaders.
+    return torch.utils.data.DataLoader(
+        dataset=dset,
+        collate_fn=collate_fn,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        drop_last=drop_last,
+        generator=rng,
+    )
+
+def create_lra_imdb_classification_dataset(
+    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, batch_size: int = 50, seed: int = 42
+):
+    print("[*] Generating LRA-text (IMDB) Classification Dataset")
+    name = "imdb"
+    dataset_obj = IMDB("imdb")
+    dataset_obj.cache_dir = Path(cache_dir) / name
+    dataset_obj.setup()
+
+    trainloader = make_data_loader(
+        dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=batch_size
+    )
+    testloader = make_data_loader(
+        dataset_obj.dataset_test,
+        dataset_obj,
+        seed=seed,
+        batch_size=batch_size,
+        drop_last=False,
+        shuffle=False,
+    )
+    valloader = None
+
+    N_CLASSES = dataset_obj.d_output
+    SEQ_LENGTH = dataset_obj.l_max
+    IN_DIM = 135  # We should probably stop this from being hard-coded.
+    TRAIN_SIZE = len(dataset_obj.dataset_train)
+
+    aux_loaders = {}
+
+    return (
+        trainloader,
+        valloader,
+        testloader,
+        aux_loaders,
+        N_CLASSES,
+        SEQ_LENGTH,
+        IN_DIM,
+        TRAIN_SIZE,
+    )
+
+
+@jax.vmap
+def create_mask(x, length):
+    L = x.shape[0]
+    mask = (jnp.arange(L) >= length[0]) * (jnp.arange(L) < length[1])
+    return mask
+
+def prep_batch(batch, seq_len, in_dim):
+    """Take a batch and convert it to a standard x/y format"""
+    if len(batch) == 2:
+        inputs, targets = batch
+        aux_data = {}
+    elif len(batch) == 3:
+        inputs, targets, aux_data = batch
+    else:
+        raise RuntimeError("Unhandled data type. ")
+
+    inputs = jnp.array(inputs.numpy()).astype(float)  # convert to jax (float32)
+    targets = jnp.array(targets.numpy())  # convert to jax (int32)
+    lengths = aux_data.get("lengths", None)  # get lengths from aux if it is there.
+
+    # Make all batches have same sequence length
+    num_pad = seq_len - inputs.shape[1]
+    if num_pad > 0:
+        inputs = jnp.pad(inputs, ((0, 0), (0, num_pad)), "constant", constant_values=(0,))
+
+    # Inputs size is [n_batch, seq_len] or [n_batch, seq_len, in_dim].
+    # If there are not three dimensions and trailing dimension is not equal to in_dim then
+    # transform into one-hot.  This should be a fairly reliable fix.
+    if (inputs.ndim < 3) and (inputs.shape[-1] != in_dim):
+        inputs = one_hot(inputs, in_dim)
+
+    if lengths is not None:
+        lengths = jnp.array(lengths)
+        if len(lengths.shape) == 1:  # If lengths only give last
+            lengths = jnp.stack([jnp.zeros((inputs.shape[0],)), lengths], axis=1)
+        masks = create_mask(inputs, lengths)
+    else:
+        masks = jnp.ones((inputs.shape[0], inputs.shape[1]))
+
+    return inputs, targets, masks

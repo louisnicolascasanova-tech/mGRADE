@@ -8,7 +8,7 @@ import optax
 import matplotlib.pyplot as plt
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml
+from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, create_lra_imdb_classification_dataset, prep_batch
 from plots import plot_dynamics
 
 from model import BatchRNN_General
@@ -40,11 +40,17 @@ def main(args):
 
     dataset_fns = {
         'cifar': create_cifar_gs_classification_dataset,
-        'mnist': create_mnist_classification_dataset
+        'mnist': create_mnist_classification_dataset,
+        'imdb': create_lra_imdb_classification_dataset
     }
-    trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+    if args.dataset in ['cifar', 'mnist']:
+        trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+        batch_x, batch_y = next(iter(testloader))
+    elif args.dataset == 'imdb':
+        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
+        batch = next(iter(testloader))
+        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM)
 
-    batch_x, batch_y = next(iter(testloader))
     print(batch_x.shape, batch_y.shape)
     print(batch_y.dtype)
 
@@ -91,7 +97,7 @@ def main(args):
     # model_mingru = BatchRNN(HIDDEN_DIM, 10, args.n_layers, recurrent_layer=minGRULayer)
     steps_per_epoch = len(trainloader) 
     lr_map, lr_fn = create_learning_rate_map(args, steps_per_epoch)
-    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
+    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
     state, n_params, _ = create_train_state(**sim_args)
     wandb.log({"n_params": n_params})
     # print(state.opt_state)
@@ -197,11 +203,11 @@ def main(args):
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
-                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients)
+                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, in_dim=IN_DIM, seq_len=SEQ_LENGTH)
         aux_dict_training.append(aux_dict_epoch)
         if break_flag:
             break
-        val_loss, val_acc  = validate(state, model_cls, val_loader)
+        val_loss, val_acc  = validate(state, model_cls, val_loader) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES)
         if val_acc > best_val_acc + improvement:
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
@@ -210,7 +216,7 @@ def main(args):
             elif args.dataset == 'cifar':
                 if 0.8 > best_val_acc > 0.70: improvement = 0.005 # 0.5%
                 elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
-            test_loss, test_acc = validate(state, model_cls, testloader)
+            test_loss, test_acc = validate(state, model_cls, testloader, seq_len=SEQ_LENGTH, in_dim=IN_DIM, out_dim=N_CLASSES) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES)
             checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
         else: 
@@ -243,7 +249,7 @@ def main(args):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
