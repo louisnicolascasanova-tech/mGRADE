@@ -256,7 +256,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train a GRU model")
     parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
-    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'conv_eerf', 'conv_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
+    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
