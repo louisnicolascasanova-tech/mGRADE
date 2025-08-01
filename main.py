@@ -8,7 +8,7 @@ import optax
 import matplotlib.pyplot as plt
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, create_lra_imdb_classification_dataset, prep_batch
+from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, create_lra_imdb_classification_dataset, prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories
 from plots import plot_dynamics
 
 from model import BatchRNN_General
@@ -20,23 +20,16 @@ import argparse
 import yaml
 import wandb
 
-def main(args):
-    SEED = args.seed if args.seed is not None else 42
-    # fix random seed
-    key = jax.random.PRNGKey(SEED)
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
 
-
-    args.n_layers = args.n_layers
-    HIDDEN_DIM = [args.hidden_dim]*args.n_layers
-    hidden_dim_str = HIDDEN_DIM[0]
-    LATENT_DIM = [args.latent_dim]*args.n_layers
-    latent_dim_str = LATENT_DIM[0] if LATENT_DIM[0] is not None else 'F'
-    print(f"Hidden dim: {HIDDEN_DIM}, Latent dim: {LATENT_DIM}")
-    assert len(HIDDEN_DIM) == len(LATENT_DIM) == args.n_layers, "Hidden and latent dimensions must match the number of layers"
-
-    args.warmup_epochs = args.warmup_frac * args.n_epochs
+def main(args=None):
+    if args is None:
+        wandb.init()
+        args = wandb.config
+        args._from_wandb = True
+    
+    # Setup random seeds and configuration
+    key, SEED = setup_random_seeds(args.seed)
+    HIDDEN_DIM, LATENT_DIM = parse_experiment_config(args)
 
     dataset_fns = {
         'cifar': create_cifar_gs_classification_dataset,
@@ -121,59 +114,9 @@ def main(args):
         print(state.params['DCLSLayer_0']['weights'])
         print(state.params['DCLSLayer_0']['std'])
 
-    
-    layer_skip_str = 'T' if args.layer_skip else 'F'
-    element_skip_str = 'T' if args.element_skip else 'F'
-    skip_str = f"skipL{layer_skip_str}E{element_skip_str}"
-    postnorm_str = 'T' if args.postnorm else 'F'
-    if args.conv == 'dcls':
-        delay_type_str = 'syn' if args.delay_type == 'synaptic' else 'ax'
-        delay_ker_str = 'gaus' if args.delay_kernel == 'gaussian' else 'exp'
-        hete_pos = 'T' if args.heterogeneous_positions else 'F'
-        hete_pos_str = f'hetP{hete_pos}'
-        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}{args.kernel_n_elems}'
-    else:
-        wavenet_str = 'eerf' if args.wavenet_dilation else 'lerf'
-        schedule_str = args.dilation_schedule if args.dilation_schedule is not None else 'F'
-        conv_str = f'conv{args.kernel_size}{wavenet_str}sch{schedule_str}'
-    if args.channel_mixing == 'glu':
-        cm_str = f"cm{args.channel_mixing}{args.glu_type}"
-    elif args.channel_mixing == 'mlp':
-        cm_str = f"cm{args.channel_mixing}{args.cm_act}"
-    elif args.channel_mixing is None:
-        cm_str = f"cmF"
-    het_w_str = 'T' if args.heterogeneous_weights else 'F'
-    het_std_str = 'T' if args.heterogeneous_std else 'F'
-    train_w_str = 'T' if args.train_weights else 'F'
-    train_std_str = 'T' if args.train_std else 'F'
-    train_pos_str = 'T' if args.train_positions else 'F'
-    hetero_str = f"hetW{het_w_str}S{het_std_str}trainW{train_w_str}S{train_std_str}P{train_pos_str}"
-    id_sim = f"general/{args.dataset}/H{hidden_dim_str}L{args.n_layers}B{args.batch_size}_do{args.do_rate}_" + \
-                f"lr{args.lr}wd{args.weight_decay}we{args.warmup_epochs}_" + \
-                f"{skip_str}_{conv_str}_" + \
-                f"rec{args.rec_act}_{cm_str}_" + \
-                f"HpreReg{args.reg_factor}_C{latent_dim_str}{args.comp_act}_p{postnorm_str}_" + \
-                f"{hetero_str}_s{SEED}"
-    CKPT_DIR = os.path.join(os.getcwd(), f"checkpoints/{id_sim}")
-    WU_DIR = os.path.join(os.getcwd(), f"checkpoints/{id_sim}/warmup")
-    if os.path.exists(CKPT_DIR):
-        id_sim += f"_training_1"
-    i = 2
-    while os.path.exists(CKPT_DIR):
-        # pop the last number from the id_sim
-        id_sim = id_sim[:-1]
-        id_sim += f"{i}"
-        CKPT_DIR = os.path.join(os.getcwd(), f"checkpoints/{id_sim}")
-        i += 1
-    print(CKPT_DIR)
-    print(CKPT_DIR)
-    os.makedirs(CKPT_DIR, exist_ok=True)
-    RESULT_DIR = os.path.join(os.getcwd(), f"results/{id_sim}")
-    print(RESULT_DIR)
-    os.makedirs(RESULT_DIR, exist_ok=True)
-    PLT_DIR = os.path.join(os.getcwd(), f"plots/{id_sim}")
-    print(PLT_DIR)
-    os.makedirs(PLT_DIR, exist_ok=True)
+    # Generate experiment ID and create directories
+    base_id = generate_experiment_id(args, HIDDEN_DIM, LATENT_DIM, SEED)
+    id_sim, CKPT_DIR, WU_DIR, RESULT_DIR, PLT_DIR = create_experiment_directories(base_id)
 
     # Write configuration to YAML file
     write_config_yaml(args, CKPT_DIR)
@@ -198,20 +141,24 @@ def main(args):
     async_manager = checkpoints.AsyncManager()
     test_loss = 2.5
     test_acc = 0.0
+    test_metrics = {}
     for epoch in range(args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
-                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, in_dim=IN_DIM, seq_len=SEQ_LENGTH)
+                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, in_dim=IN_DIM, seq_len=SEQ_LENGTH,
+                        grad_clip_norm=getattr(args, 'grad_clip_norm', 1.0),
+                        log_model_behavior=getattr(args, 'log_model_behavior', True), epoch_num=epoch)
         aux_dict_training.append(aux_dict_epoch)
         
         if break_flag:
             break
         
-        val_loss, val_acc  = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES) # TODO: create a val loader for imdb
-        if val_acc > best_val_acc + improvement:
+        val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                                                  log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") # TODO: create a val loader for imdb
+        if val_acc > best_val_acc + improvement: 
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
             if args.dataset == 'mnist':
@@ -219,13 +166,37 @@ def main(args):
             elif args.dataset == 'cifar':
                 if 0.8 > best_val_acc > 0.70: improvement = 0.005 # 0.5%
                 elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
-            test_loss, test_acc = validate(state, model_cls, testloader, seq_len=SEQ_LENGTH, in_dim=IN_DIM, out_dim=N_CLASSES) if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES)
-            checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
-            print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
+            if args.dataset != 'imdb':
+                test_loss, test_acc, test_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                                                            log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test")
+                checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
+                print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
+            else:
+                print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
+
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
         
-        wandb.log({"train_loss": train_loss, "train_acc": train_acc, "val_loss": val_loss, "val_acc": val_acc, "test_loss": test_loss, "test_acc": test_acc, "best_val_acc": best_val_acc, "best_val_acc_loss": best_val_acc_loss})
+        # Prepare main logging dictionary
+        main_metrics = {
+            "train/loss": train_loss, "train/acc": train_acc, 
+            "val/loss": val_loss, "val/acc": val_acc, 
+            "val/loss_best": best_val_acc_loss, "val/acc_best": best_val_acc,
+        }
+        if args.dataset != 'imdb':
+            main_metrics.update({
+                "test/loss_best": test_loss, "test/acc_best": test_acc
+            })
+        
+        # Add validation metrics if available
+        if val_metrics:
+            main_metrics.update(val_metrics)
+            
+        # Add test metrics if available (only when model improves)
+        if test_metrics:
+            main_metrics.update(test_metrics)
+            
+        wandb.log(main_metrics)
         
         train_losses.append(train_loss)
         train_accuracies.append(train_acc)
@@ -240,16 +211,21 @@ def main(args):
         if epoch == args.n_epochs*args.warmup_frac: 
             print("Saving the warmed up model")
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
+        
+        if val_loss > 2*best_val_acc_loss:
+            print('CANCELLING: OVERFITTING')
+            break
 
 
-    # Save training dynamics
-    np.savez(os.path.join(RESULT_DIR, 'training_dynamics.npz'), 
-            train_losses=train_losses, 
-            train_accuracies=train_accuracies, 
-            val_losses=val_losses, 
-            val_accuracies=val_accuracies,
-            test_losses=test_losses,
-            test_accuracies=test_accuracies)
+    # Save training dynamics (only in non-sweep mode)
+    if not hasattr(args, '_from_wandb'):
+        np.savez(os.path.join(RESULT_DIR, 'training_dynamics.npz'), 
+                train_losses=train_losses, 
+                train_accuracies=train_accuracies, 
+                val_losses=val_losses, 
+                val_accuracies=val_accuracies,
+                test_losses=test_losses,
+                test_accuracies=test_accuracies)
     
 if __name__ == "__main__":
 
@@ -260,29 +236,11 @@ if __name__ == "__main__":
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
+    parser.add_argument("--sweep", action="store_true", help="Run in sweep mode using wandb sweep configuration")
     args_cli = parser.parse_args()
 
-    def parse_args():
-        conv_str = f'{args_cli.conv_mode}'
-        if args_cli.conv_mode == 'dcls':
-            conv_str += f'_c{args_cli.dcls_config}'
-        with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml", "r") as file:
-            config = yaml.safe_load(file)
-        return argparse.Namespace(**config)
-
-    args = parse_args()
-    print(args)
-
-    # add the CLI arguments to the args object
-    args.dataset = args_cli.dataset
-    args.gpu = args_cli.gpu
-    if args_cli.seed is not None:
-        args.seed = args_cli.seed
+    os.environ["CUDA_VISIBLE_DEVICES"] = str(args_cli.gpu)
     
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
-    # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
-    os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"
-
     # check if the wandb_api_key.txt file exists
     if not os.path.exists("wandb_api_key.txt"):
         print("\n")
@@ -293,13 +251,51 @@ if __name__ == "__main__":
 
     file_path = os.path.abspath(__file__)
     os.environ["WANDB_NOTEBOOK_NAME"] = file_path
+    
+    wandb.login()
+    
+    if args_cli.sweep:
+        # Sweep mode: load sweep config and run sweep
+        def load_config():
+            conv_str = f'{args_cli.conv_mode}'
+            if 'dcls' in args_cli.conv_mode:
+                conv_str += f'_c{args_cli.dcls_config}'
+            with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_wandb_{args_cli.file_nb}.yaml", "r") as file:
+                config = yaml.safe_load(file)
+            return config
+        
+        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.2"
+        sweep_config = load_config()
+        print(sweep_config)
+        
+        sweep_id = wandb.sweep(sweep_config, project="Den-minGRU_sweeps") 
+        wandb.agent(sweep_id, main)
+    else:
+        # Regular mode: load config from yaml and run single experiment
+        def parse_args():
+            conv_str = f'{args_cli.conv_mode}'
+            if args_cli.conv_mode == 'dcls':
+                conv_str += f'_c{args_cli.dcls_config}'
+            with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml", "r") as file:
+                config = yaml.safe_load(file)
+            return argparse.Namespace(**config)
 
-    wandb.login() # 26abb11684a03fc09307300eba9bc9cd3c71e4f0
-    wandb.init(project="DenGRU_general", name='gen')
-    wandb.config.update(args)
+        args = parse_args()
+        print(args)
 
-
-    main(args)
+        # add the CLI arguments to the args object
+        args.dataset = args_cli.dataset
+        args.gpu = args_cli.gpu
+        if args_cli.seed is not None:
+            args.seed = args_cli.seed
+        
+        # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
+        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"
+        
+        wandb.init(project="DenGRU_general", name='gen')
+        wandb.config.update(args)
+        
+        main(args)
 
 
     # The conv layers should take an input of length: 

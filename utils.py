@@ -312,3 +312,119 @@ def prep_batch(batch, seq_len, in_dim):
         masks = jnp.ones((inputs.shape[0], inputs.shape[1]))
 
     return inputs, targets, masks
+
+
+def setup_random_seeds(seed=None):
+    """Initialize random seeds for reproducibility."""
+    seed = seed if seed is not None else 42
+    key = jax.random.PRNGKey(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    return key, seed
+
+
+def parse_experiment_config(args):
+    """Parse and prepare experiment configuration."""
+    hidden_dim = [args.hidden_dim] * args.n_layers
+    latent_dim = [args.latent_dim] * args.n_layers
+    args.warmup_epochs = args.warmup_frac * args.n_epochs
+    
+    print(f"Hidden dim: {hidden_dim}, Latent dim: {latent_dim}")
+    assert len(hidden_dim) == len(latent_dim) == args.n_layers, \
+        "Hidden and latent dimensions must match the number of layers"
+    
+    return hidden_dim, latent_dim
+
+
+def generate_experiment_id(args, hidden_dim, latent_dim, seed):
+    """Generate a unique experiment identifier string."""
+    # Helper function for boolean to string conversion
+    bool_to_str = lambda x: 'T' if x else 'F'
+    
+    # Basic config strings
+    hidden_dim_str = hidden_dim[0]
+    latent_dim_str = latent_dim[0] if latent_dim[0] is not None else 'F'
+    skip_str = f"skipL{bool_to_str(args.layer_skip)}E{bool_to_str(args.element_skip)}"
+    postnorm_str = bool_to_str(args.postnorm)
+    
+    # Convolution config string
+    if args.conv == 'dcls':
+        delay_type_str = 'syn' if args.delay_type == 'synaptic' else 'ax'
+        delay_ker_str = 'gaus' if args.delay_kernel == 'gaussian' else 'exp'
+        hete_pos_str = f'hetP{bool_to_str(args.heterogeneous_positions)}'
+        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}{args.kernel_n_elems}'
+    else:
+        wavenet_str = 'eerf' if args.wavenet_dilation else 'lerf'
+        schedule_str = args.dilation_schedule if args.dilation_schedule is not None else 'F'
+        conv_str = f'conv{args.kernel_size}{wavenet_str}sch{schedule_str}'
+    
+    # Channel mixing config string
+    if args.channel_mixing == 'glu':
+        cm_str = f"cm{args.channel_mixing}{args.glu_type}"
+    elif args.channel_mixing == 'mlp':
+        cm_str = f"cm{args.channel_mixing}{args.cm_act}"
+    else:
+        cm_str = "cmF"
+    
+    # Heterogeneous config string
+    hetero_parts = [
+        f"hetW{bool_to_str(args.heterogeneous_weights)}",
+        f"S{bool_to_str(args.heterogeneous_std)}",
+        f"trainW{bool_to_str(args.train_weights)}",
+        f"S{bool_to_str(args.train_std)}",
+        f"P{bool_to_str(args.train_positions)}"
+    ]
+    hetero_str = "".join(hetero_parts)
+    
+    # Combine all parts
+    id_parts = [
+        f"general/{args.dataset}",
+        f"H{hidden_dim_str}L{args.n_layers}B{args.batch_size}",
+        f"do{args.do_rate}",
+        f"lr{args.lr}wd{args.weight_decay}we{args.warmup_epochs}",
+        skip_str,
+        conv_str,
+        f"rec{args.rec_act}",
+        cm_str,
+        f"HpreReg{args.reg_factor}",
+        f"C{latent_dim_str}{args.comp_act}",
+        f"p{postnorm_str}",
+        hetero_str,
+        f"s{seed}"
+    ]
+    
+    return "_".join(id_parts)
+
+
+def create_experiment_directories(base_id):
+    """Create unique experiment directories, handling conflicts."""
+    def get_unique_id(base_id):
+        current_id = base_id
+        ckpt_dir = os.path.join(os.getcwd(), f"checkpoints/{current_id}")
+        
+        if not os.path.exists(ckpt_dir):
+            return current_id, ckpt_dir
+        
+        # Handle conflicts by appending numbers
+        current_id += "_training_1"
+        ckpt_dir = os.path.join(os.getcwd(), f"checkpoints/{current_id}")
+        
+        counter = 2
+        while os.path.exists(ckpt_dir):
+            current_id = current_id[:-1] + str(counter)
+            ckpt_dir = os.path.join(os.getcwd(), f"checkpoints/{current_id}")
+            counter += 1
+        
+        return current_id, ckpt_dir
+    
+    final_id, ckpt_dir = get_unique_id(base_id)
+    wu_dir = os.path.join(ckpt_dir, "warmup")
+    result_dir = os.path.join(os.getcwd(), f"results/{final_id}")
+    plt_dir = os.path.join(os.getcwd(), f"plots/{final_id}")
+    
+    # Create directories
+    for directory in [ckpt_dir, result_dir, plt_dir]:
+        os.makedirs(directory, exist_ok=True)
+        print(directory)
+    
+    return final_id, ckpt_dir, wu_dir, result_dir, plt_dir
