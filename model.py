@@ -151,7 +151,7 @@ class HeinsenMinGRULayer(nn.Module):
             else: 
                 raise ValueError(f"Unknown activation type: {self.layer_act}")
             # define the dropout layer
-            out = nn.Dropout(rate=self.do_rate, deterministic=not self.training)(out)
+            out = nn.Dropout(rate=self.do_rate, broadcast_dims=(0,), deterministic=not self.training)(out)
             return (h_new, z_preact, h_tilde_preact, out, out_preact)
         #{'h_new': h_new, 'z_preact': z_preact, 'h_tilde_preact': h_tilde_preact, 'out': out, 'out_preact': out_preact}
         

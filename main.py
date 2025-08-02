@@ -8,7 +8,9 @@ import optax
 import matplotlib.pyplot as plt
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, create_lra_imdb_classification_dataset, prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories
+from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, \
+        create_lra_imdb_classification_dataset, create_lra_listops_classification_dataset, \
+        prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories
 from plots import plot_dynamics
 
 from model import BatchRNN_General
@@ -34,12 +36,13 @@ def main(args=None):
     dataset_fns = {
         'cifar': create_cifar_gs_classification_dataset,
         'mnist': create_mnist_classification_dataset,
-        'imdb': create_lra_imdb_classification_dataset
+        'imdb': create_lra_imdb_classification_dataset,
+        'listops': create_lra_listops_classification_dataset
     }
     if args.dataset in ['cifar', 'mnist']:
         trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
         batch_x, batch_y = next(iter(testloader)) # used for the tabulate function
-    elif args.dataset == 'imdb':
+    elif args.dataset in ['imdb', 'listops']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
         batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
@@ -142,6 +145,8 @@ def main(args=None):
     test_loss = 2.5
     test_acc = 0.0
     test_metrics = {}
+    ovf_count = 0
+    bad_count = 0
     for epoch in range(args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         
@@ -212,9 +217,23 @@ def main(args=None):
             print("Saving the warmed up model")
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
         
-        if val_loss > 2*best_val_acc_loss:
-            print('CANCELLING: OVERFITTING')
-            break
+        if args.dataset == 'imdb' and val_loss > 2*best_val_acc_loss:
+            if ovf_count < 5:
+                print('CANCELLING: OVERFITTING')
+                break
+            ovf_count += 1
+            print(f'OVF COUNT: {ovf_count}')
+        else:
+            ovf_count = 0
+
+        if args.dataset == 'imdb' and best_val_acc < 0.7 and epoch > 15:
+            if bad_count < 5:
+                print('CANCELLING: LOW ACCURACY ON IMDB')
+                break
+            bad_count += 1
+            print(f'BAD COUNT: {bad_count}')
+        else:
+            bad_count = 0
 
 
     # Save training dynamics (only in non-sweep mode)
@@ -230,7 +249,7 @@ def main(args=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")

@@ -13,7 +13,7 @@ import yaml
 from typing import Union, Callable, Tuple
 from pathlib import Path
 from flax.linen import one_hot
-from lra import IMDB
+from lra import IMDB, AAN, ListOps
 
 PX = 1/plt.rcParams['figure.dpi']
 DEFAULT_CACHE_DIR_ROOT = Path("./cache_dir/")
@@ -270,6 +270,113 @@ def create_lra_imdb_classification_dataset(
         IN_DIM,
         TRAIN_SIZE,
     )
+
+def create_lra_listops_classification_dataset(
+    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, batch_size: int = 50, seed: int = 42
+):
+    print("[*] Generating LRA-listops Classification Dataset")
+
+    name = "listops"
+    dir_name = "./raw_datasets/lra_release/lra_release/listops-1000"
+
+    dataset_obj = ListOps(name, data_dir=dir_name)
+    dataset_obj.cache_dir = Path(cache_dir) / name
+    dataset_obj.setup()
+
+    trn_loader = make_data_loader(
+        dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=batch_size
+    )
+    val_loader = make_data_loader(
+        dataset_obj.dataset_val,
+        dataset_obj,
+        seed=seed,
+        batch_size=batch_size,
+        drop_last=False,
+        shuffle=False,
+    )
+    tst_loader = make_data_loader(
+        dataset_obj.dataset_test,
+        dataset_obj,
+        seed=seed,
+        batch_size=batch_size,
+        drop_last=False,
+        shuffle=False,
+    )
+
+    N_CLASSES = dataset_obj.d_output
+    SEQ_LENGTH = dataset_obj.l_max
+    IN_DIM = 20
+    TRAIN_SIZE = len(dataset_obj.dataset_train)
+
+    aux_loaders = {}
+
+    return (
+        trn_loader,
+        val_loader,
+        tst_loader,
+        aux_loaders,
+        N_CLASSES,
+        SEQ_LENGTH,
+        IN_DIM,
+        TRAIN_SIZE,
+    )
+
+def create_lra_aan_classification_dataset(
+    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
+    batch_size: int = 50,
+    seed: int = 42,
+):
+    print("[*] Generating LRA-AAN Classification Dataset")
+
+    name = "aan"
+    dir_name = "./raw_datasets/lra_release/lra_release/tsv_data"
+    kwargs = {
+        "n_workers": 1,  # Multiple workers seems to break AAN.
+    }
+
+    dataset_obj = AAN(name, data_dir=dir_name, **kwargs)
+    dataset_obj.cache_dir = Path(cache_dir) / name
+    dataset_obj.setup()
+
+    trn_loader = make_data_loader(
+        dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=batch_size
+    )
+    val_loader = make_data_loader(
+        dataset_obj.dataset_val,
+        dataset_obj,
+        seed=seed,
+        batch_size=batch_size,
+        drop_last=False,
+        shuffle=False,
+    )
+    tst_loader = make_data_loader(
+        dataset_obj.dataset_test,
+        dataset_obj,
+        seed=seed,
+        batch_size=batch_size,
+        drop_last=False,
+        shuffle=False,
+    )
+
+    N_CLASSES = dataset_obj.d_output
+    SEQ_LENGTH = dataset_obj.l_max
+    IN_DIM = len(dataset_obj.vocab)
+    TRAIN_SIZE = len(dataset_obj.dataset_train)
+
+    aux_loaders = {}
+
+    return (
+        trn_loader,
+        val_loader,
+        tst_loader,
+        aux_loaders,
+        N_CLASSES,
+        SEQ_LENGTH,
+        IN_DIM,
+        TRAIN_SIZE,
+    )
+
+
 
 
 @jax.vmap
