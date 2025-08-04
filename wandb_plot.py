@@ -27,8 +27,8 @@ def plot_grad_norms(entity, project, run_id, from_10k=False, ema=False, ema_coef
     wandb.login(key=api_key)
     
     try:
-        # Initialize API
-        api = wandb.Api()
+        # Initialize API with increased timeout
+        api = wandb.Api(timeout=60)
         
         # Get the run
         run_path = f"{entity}/{project}/{run_id}"
@@ -77,7 +77,7 @@ def plot_grad_norms(entity, project, run_id, from_10k=False, ema=False, ema_coef
         os.makedirs(output_dir, exist_ok=True)
         print(f"Output directory: {output_dir}")
         
-        train_acc = run.scan_history(keys=['train/acc'], page_size=50000)
+        train_acc = run.scan_history(keys=['train/acc'], page_size=10000)
         print([ta for ta in train_acc])
 
         # Check how many columns have None values

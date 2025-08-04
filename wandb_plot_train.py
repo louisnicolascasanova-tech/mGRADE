@@ -420,6 +420,6 @@ if __name__ == "__main__":
         # Default values
         entity = "torchet-tristan"
         project = "DenGRU_general"
-        run_id = "76gu8tai"
+        run_id = "76gu8tai" # v1epmjda
     
     plot_training_dyn(entity, project, run_id)

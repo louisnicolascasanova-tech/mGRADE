@@ -9,14 +9,16 @@ import os
 import argparse
 import yaml
 
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset
+from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, \
+        create_lra_imdb_classification_dataset, create_lra_listops_classification_dataset, \
+        create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset
 from model import BatchRNN_General
-from training import create_train_state, validate, create_learning_rate_map
+from training import create_train_state, validate, create_learning_rate_map, prep_batch
 from functools import partial
 
 
 def main(args):
-    SEED = args.seed if args.seed is not None else 42
+    SEED = args.seed if args.seed is not None else 0
     key = jax.random.PRNGKey(SEED)
     torch.manual_seed(SEED)
     np.random.seed(SEED)
@@ -27,9 +29,23 @@ def main(args):
 
     dataset_fns = {
         'cifar': create_cifar_gs_classification_dataset,
-        'mnist': create_mnist_classification_dataset
+        'mnist': create_mnist_classification_dataset,
+        'imdb': create_lra_imdb_classification_dataset,
+        'listops': create_lra_listops_classification_dataset,
+        'path': create_lra_path32_classification_dataset,
+        'pathx': create_lra_pathx_classification_dataset
     }
-    trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+    if args.dataset in ['cifar', 'mnist']:
+        trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+        batch_x, batch_y = next(iter(testloader)) # used for the tabulate function
+    elif args.dataset in ['imdb', 'listops']:
+        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=SEED)
+        batch = next(iter(testloader))
+        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
+    elif args.dataset in ['path', 'pathx']:
+        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=SEED)
+        batch = next(iter(testloader))
+        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
 
     # Model partial
     model_cls = partial(
@@ -51,16 +67,16 @@ def main(args):
 
     steps_per_epoch = len(trainloader)
     lr_map, lr_fn = create_learning_rate_map(args, steps_per_epoch)
-    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
+    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
     state, n_params, _ = create_train_state(**sim_args)
 
     # Restore checkpoint
     CKPT_DIR = args.ckpt_dir
-    state = checkpoints.restore_checkpoint(ckpt_dir=CKPT_DIR, target=state)
+    state_trained = checkpoints.restore_checkpoint(ckpt_dir=CKPT_DIR, target=state)
     print(f"Loaded checkpoint from {CKPT_DIR}")
 
+
     key, key1, key2 = jax.random.split(key, 3)
-    batch_x, batch_y = next(iter(trainloader))
     model_tab = model_cls(training=False)
     tabulate_fn = nn.tabulate(model_tab, {'params': key1, 'dropout': key2})
     print(tabulate_fn(batch_x))
@@ -70,12 +86,17 @@ def main(args):
         print(state.params['DCLSLayer_0']['positions'])
         print(state.params['DCLSLayer_0']['weights'])
         print(state.params['DCLSLayer_0']['std'])
+        print(state_trained.params['DCLSLayer_0']['positions'])
+        print(state_trained.params['DCLSLayer_0']['weights'])
+        print(state_trained.params['DCLSLayer_0']['std'])
 
 
 
     # Evaluate on test set
-    test_loss, test_acc = validate(state, model_cls, testloader)
-    print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc*100:.2f}%")
+    # test_loss, test_acc, test_metrics = validate(state_trained, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+    #                                             log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test") if args.dataset != 'imdb' \
+    #                                                 else validate(state_trained, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test")
+    # print(f"Test loss: {test_loss:.4f}, Test accuracy: {test_acc*100:.2f}%")
 
     from model import construct_kernel_fast
     import matplotlib.pyplot as plt
@@ -101,34 +122,70 @@ def main(args):
         return ks, all_k
     n_dim = 3 if args.delay_type == 'synaptic' else 2
     ks, all_k = get_kernels(state.params, n_dim, args.kernel_size)
+    ks_trained, all_k_trained = get_kernels(state_trained.params, n_dim, args.kernel_size)
 
-    def plot_kernels_axonal(ks):
+    # # reverse the axis=1 of ks and ks_trained
+    ks = [np.flip(k, axis=1) for k in ks]
+    ks_trained = [np.flip(k, axis=1) for k in ks_trained]
+
+    def plot_kernels_axonal(ks, init):
         PX = 1 / plt.rcParams['figure.dpi']
-        fig, axes = plt.subplots(args.n_layers, 1, figsize=(10*args.kernel_size*PX, 300 * PX * args.n_layers), constrained_layout=True)
+        factor_hight = np.log2(args.hidden_dim) - 5 if args.hidden_dim > 32 else 1
+        factor_width = np.log2(args.kernel_size) - 5 if args.kernel_size > 32 else 1
+        fig, axes = plt.subplots(2, args.n_layers, figsize=(300 * PX * args.n_layers, 300*factor_hight*PX), constrained_layout=True)
         print(f"Plotting axonal kernels for {args.n_layers} layers")
         # print figure size
         print(f"Figure size: {fig.get_size_inches()} inches")
+        
+        # Calculate max value for colorbar scaling
+        max_val = max(np.max(np.abs(ks[i])) for i in range(args.n_layers))
+        
         for i in range(args.n_layers):
-            max_val = np.max(np.abs(ks[i]))
-            ax = axes[i] if args.n_layers > 1 else axes  # Handle single subplot case
-            im = ax.matshow(ks[i], cmap='RdBu_r', vmin=-max_val, vmax=max_val)
-            ax.set_title(f"Visualization of ks[{i}]")
-            ax.set_yticks(np.arange(ks[i].shape[0]))
-        fig.colorbar(im, ax=axes, orientation='vertical', fraction=0.02, pad=0.04)
+            # Top row - full scale
+            ax_top = axes[0, i] if args.n_layers > 1 else axes[0]
+            im_top = ax_top.imshow(ks[i], cmap='RdBu_r', vmin=-max_val, vmax=max_val, aspect='auto')
+            ax_top.set_title(f"Visualization of ks[{i}] (full scale)")
+            ax_top.set_yticks(np.arange(0, ks[i].shape[0], 8))
+            
+            # Add y-label only to leftmost plots
+            if i == 0:
+                ax_top.set_ylabel('Hidden Dimension')
+            
+            # Bottom row - half scale
+            ax_bottom = axes[1, i] if args.n_layers > 1 else axes[1]
+            im_bottom = ax_bottom.imshow(ks[i], cmap='RdBu_r', vmin=-max_val/2, vmax=max_val/2, aspect='auto')
+            ax_bottom.set_title(f"ks[{i}] (half scale)")
+            ax_bottom.set_yticks(np.arange(0, ks[i].shape[0], 8))
+            
+            # Add y-label only to leftmost plots
+            if i == 0:
+                ax_bottom.set_ylabel('Hidden Dimension')
+            
+            # Add x-label to bottom row plots
+            ax_bottom.set_xlabel('Kernel Position')
+        
+        # Add colorbars
+        fig.colorbar(im_top, ax=axes[0], orientation='vertical', fraction=0.02, pad=0.04, label='Full scale')
+        fig.colorbar(im_bottom, ax=axes[1], orientation='vertical', fraction=0.02, pad=0.04, label='Half scale')
+        
         # save figure
-        fig.savefig('kernels_axonal_2.png')
+        fig_name = f'kernels_axonal_{args.dataset}_H{args.hidden_dim}_K{args.kernel_size}_E{args.kernel_n_elems}_init_{init}.png' if init else f'kernels_axonal_{args.dataset}_H{args.hidden_dim}_K{args.kernel_size}_E{args.kernel_n_elems}.png'
+        print(f"Saving figure to {fig_name}")
+        fig.savefig(fig_name, dpi=300)#, bbox_inches='tight')
 
     if args.delay_type == 'axonal':
         print("Plotting axonal kernels")
-        plot_kernels_axonal(ks)
+        plot_kernels_axonal(ks, init=True)
+        plot_kernels_axonal(ks_trained, init=False)
     else:
-        plot_kernels_syn(ks)
+        raise ValueError(f"Unsupported delay type: {args.delay_type}. Only 'axonal' is supported for plotting.")
+        #plot_kernels_syn(ks)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Inference for GRU model")
     parser.add_argument("--ckpt_dir", type=str, required=True, help="Path to checkpoint directory (the folder containing the checkpoint file)")
     # dataset
-    parser.add_argument("--dataset", type=str, choices=['cifar', 'mnist'], default='cifar', help="Dataset to use for training")
+    parser.add_argument("--dataset", type=str, choices=['cifar', 'mnist', 'imdb', 'listops', 'path', 'pathx'], default='cifar', help="Dataset to use for inference")
     # gpu 
     parser.add_argument("--gpu", type=int, default=0, help="GPU device ID to use")
     args_cli = parser.parse_args()
