@@ -13,7 +13,7 @@ import yaml
 from typing import Union, Callable, Tuple
 from pathlib import Path
 from flax.linen import one_hot
-from lra import IMDB, AAN, ListOps
+from lra import IMDB, AAN, ListOps, PathFinder
 
 PX = 1/plt.rcParams['figure.dpi']
 DEFAULT_CACHE_DIR_ROOT = Path("./cache_dir/")
@@ -535,3 +535,47 @@ def create_experiment_directories(base_id):
         print(directory)
     
     return final_id, ckpt_dir, wu_dir, result_dir, plt_dir
+
+
+def compute_class_weights(train_loader, num_classes):
+    """Compute class weights based on the training dataset."""
+    class_counts = np.zeros(num_classes, dtype=np.float32)
+    
+    for batch in train_loader:
+        labels = batch[1]  # batch can be a tuple (inputs, labels) or (inputs, labels, aux_data)
+        unique, counts = np.unique(labels.numpy(), return_counts=True)
+        class_counts[unique] += counts
+    
+    total_samples = class_counts.sum()
+    class_weights = total_samples / (num_classes * class_counts)
+    
+    return tuple(class_weights.tolist())
+
+def create_lra_path32_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
+											 bsz: int = 50,
+											 seed: int = 42):
+	"""
+	See abstract template.
+	"""
+	print("[*] Generating LRA-Pathfinder32 Classification Dataset")
+	name = 'pathfinder'
+	resolution = 32
+	dir_name = f'./raw_datasets/lra_release/lra_release/pathfinder{resolution}'
+
+	dataset_obj = PathFinder(name, data_dir=dir_name, resolution=resolution)
+	dataset_obj.cache_dir = Path(cache_dir) / name
+	dataset_obj.setup()
+
+	trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
+	val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+	tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+
+	N_CLASSES = dataset_obj.d_output
+	SEQ_LENGTH = dataset_obj.dataset_train.tensors[0].shape[1]
+	IN_DIM = dataset_obj.d_input
+	TRAIN_SIZE = dataset_obj.dataset_train.tensors[0].shape[0]
+
+	aux_loaders = {}
+
+	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
+

@@ -38,8 +38,8 @@ def update_model(state, grads, kernel_size, grad_clip_norm=1.0):
     return state, grad_norm, grad_norm_post_clip
 
 
-@partial(jax.jit, static_argnames=('model','reg_factor'))
-def apply_model(state, model, x, y, reg_factor, do_key):
+@partial(jax.jit, static_argnames=('model','reg_factor', 'class_weights'))
+def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     """Computes gradients, loss and accuracy for a single batch."""
     # do_key = jax.random.fold_in(do_key, state.step)
     def loss_fn(params):
@@ -47,11 +47,14 @@ def apply_model(state, model, x, y, reg_factor, do_key):
         logits = out_hist.mean(axis=1)
         one_hot = jax.nn.one_hot(y, model.out_dim)
         batch_loss = optax.softmax_cross_entropy(logits=logits, labels=one_hot)
-        reg = 0.0
-        for layers in net_dyn:
-            reg += jnp.where(jnp.abs(layers[2]) > 1, layers[2]**2, 0.0).sum() # h_tilde_preact
-            # reg += jnp.where(jnp.abs(layers[1]) > 1, layers[1]**2, 0.0).sum() # z_preact
-        reg += jnp.where(jnp.abs(out_hist) > 1, out_hist**2, 0.0).sum()
+        if class_weights is not None:
+            class_weights_jnp = jnp.array(class_weights, dtype=jnp.float32) # Need to create a new variable to avoid a shadowing error
+            batch_loss = batch_loss * class_weights_jnp[y]
+        # reg = 0.0
+        # for layers in net_dyn:
+        #     reg += jnp.where(jnp.abs(layers[2]) > 1, layers[2]**2, 0.0).sum() # h_tilde_preact
+        #     # reg += jnp.where(jnp.abs(layers[1]) > 1, layers[1]**2, 0.0).sum() # z_preact
+        # reg += jnp.where(jnp.abs(out_hist) > 1, out_hist**2, 0.0).sum()
         loss = jnp.mean(batch_loss) #+ reg_factor * reg
         return loss, {'logits': logits, 'batch_loss': batch_loss, 'net_dyn': net_dyn}
 
@@ -110,7 +113,7 @@ def plt_confusion_matrix(cm, class_labels):
     return Image.open(buf)
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
-              wandb_gradients=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0):
+              wandb_gradients=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, class_weights=None):
     """Train for a single epoch."""
     model = model_cls(training=True)
     epoch_loss = []
@@ -131,7 +134,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         elif len(batch) == 3:  # If the batch contains mask
             batch_x, batch_y, mask = prep_batch(batch, seq_len, in_dim)
         # start = time()
-        grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key)
+        grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key, class_weights=class_weights)
         # stop = time()
         # print("forward pass time:", stop-start)
         for k in keys_to_track:
