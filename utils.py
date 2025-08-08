@@ -579,3 +579,30 @@ def create_lra_path32_classification_dataset(cache_dir: Union[str, Path] = DEFAU
 
 	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
+def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
+											bsz: int = 50,
+											seed: int = 42):
+	"""
+	See abstract template.
+	"""
+	print("[*] Generating LRA-PathX Classification Dataset")
+	name = 'pathfinder'
+	resolution = 128
+	dir_name = f'./raw_datasets/lra_release/lra_release/pathfinder{resolution}'
+
+	dataset_obj = PathFinder(name, data_dir=dir_name, resolution=resolution)
+	dataset_obj.cache_dir = Path(cache_dir) / name
+	dataset_obj.setup()
+
+	trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
+	val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+	tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+
+	N_CLASSES = dataset_obj.d_output
+	SEQ_LENGTH = dataset_obj.dataset_train.tensors[0].shape[1]
+	IN_DIM = dataset_obj.d_input
+	TRAIN_SIZE = dataset_obj.dataset_train.tensors[0].shape[0]
+
+	aux_loaders = {}
+
+	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE

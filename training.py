@@ -50,13 +50,14 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
         if class_weights is not None:
             class_weights_jnp = jnp.array(class_weights, dtype=jnp.float32) # Need to create a new variable to avoid a shadowing error
             batch_loss = batch_loss * class_weights_jnp[y]
-        # reg = 0.0
-        # for layers in net_dyn:
-        #     reg += jnp.where(jnp.abs(layers[2]) > 1, layers[2]**2, 0.0).sum() # h_tilde_preact
-        #     # reg += jnp.where(jnp.abs(layers[1]) > 1, layers[1]**2, 0.0).sum() # z_preact
+        reg = 0.
+        for layers in net_dyn:
+            # reg = reg + jnp.where(jnp.abs(layers[2]) > 1, (layers[2]-1)**2, 0.0).sum() # h_tilde_preact
+            reg = reg + (layers[2]**2).mean() # h_tilde_preact
+            # reg += jnp.where(jnp.abs(layers[1]) > 1, layers[1]**2, 0.0).sum() # z_preact
         # reg += jnp.where(jnp.abs(out_hist) > 1, out_hist**2, 0.0).sum()
-        loss = jnp.mean(batch_loss) #+ reg_factor * reg
-        return loss, {'logits': logits, 'batch_loss': batch_loss, 'net_dyn': net_dyn}
+        loss = jnp.mean(batch_loss) + reg_factor * reg
+        return loss, {'logits': logits, 'batch_loss': batch_loss, 'net_dyn': net_dyn, 'reg': reg}
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, aux_dict), grads = grad_fn(state.params)
@@ -113,7 +114,7 @@ def plt_confusion_matrix(cm, class_labels):
     return Image.open(buf)
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
-              wandb_gradients=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, class_weights=None):
+              wandb_gradients=False, wandb_state=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, class_weights=None):
     """Train for a single epoch."""
     model = model_cls(training=True)
     epoch_loss = []
@@ -140,7 +141,8 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         for k in keys_to_track:
             aux_dict_hist[k].append(locals()[k])
         for k in inner_keys_to_track:
-            aux_dict_hist[k].append(aux_dict[k])
+            if k != 'net_dyn':  # Skip net_dyn to save memory
+                aux_dict_hist[k].append(aux_dict[k])
         
         # Collect model behavior data
         if log_model_behavior:
@@ -163,10 +165,128 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                     flat_grad = jnp.ravel(grad)
                     grad_histograms[f"train/gradients/{key}"] = wandb.Histogram(flat_grad)
         
+        # Compute network dynamics statistics per layer
+        net_dyn_histograms = {}
+        if 'net_dyn' in aux_dict and wandb_state and batch_id % 500 == 0:
+            net_dyn = aux_dict['net_dyn']
+            for layer_idx, layer_dynamics in enumerate(net_dyn):
+                h_new, z_preact, h_tilde_preact, out = layer_dynamics
+                
+                # Compute gate values z = sigmoid(z_preact)
+                z = jax.nn.sigmoid(z_preact)
+                
+                # Log histograms for h_new and z (gates)
+                flat_h_h_tilde_preact = jnp.ravel(h_tilde_preact)
+                flat_z = jnp.ravel(z)
+                flat_z_preact = jnp.ravel(z_preact)
+                
+                net_dyn_histograms[f"train_dynamics_histograms/h_tilde_preact_layer_{layer_idx}"] = wandb.Histogram(flat_h_h_tilde_preact)
+                net_dyn_histograms[f"train_dynamics_histograms/z_layer_{layer_idx}"] = wandb.Histogram(flat_z)
+                
+                # Log statistics for z_preact and h_tilde_preact
+                net_dyn_histograms[f"train_dynamics_stats/z_mean_layer_{layer_idx}"] = float(jnp.mean(z))
+                net_dyn_histograms[f"train_dynamics_stats/z_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(z)))
+                net_dyn_histograms[f"train_dynamics_stats/z_std_layer_{layer_idx}"] = float(jnp.std(z))
+                net_dyn_histograms[f"train_dynamics_stats/z_max_layer_{layer_idx}"] = float(jnp.max(z))
+                net_dyn_histograms[f"train_dynamics_stats/z_min_layer_{layer_idx}"] = float(jnp.min(z))
+                
+                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_mean_layer_{layer_idx}"] = float(jnp.mean(h_tilde_preact))
+                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(h_tilde_preact)))
+                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_std_layer_{layer_idx}"] = float(jnp.std(h_tilde_preact))
+                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_max_layer_{layer_idx}"] = float(jnp.max(h_tilde_preact))
+                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_min_layer_{layer_idx}"] = float(jnp.min(h_tilde_preact))
+        
+        # Log parameter matrices as images every 100 steps
+        if wandb_state and batch_id % 500 == 0:
+            from model import construct_kernel_fast
+            
+            flat_params = flatten_dict(state.params, sep='/')
+            for param_name, param_value in flat_params.items():
+                # Special handling for DCLS layers - reconstruct and plot the actual kernels
+                if 'DCLSLayer' in param_name and param_name.endswith('weights'):
+                    layer_name = param_name.split('/')[0]  # Extract DCLSLayer_X
+                    
+                    # Get DCLS parameters
+                    weights = state.params[layer_name]['weights']
+                    positions = state.params[layer_name]['positions']
+                    std = state.params[layer_name]['std']
+                    
+                    # Determine kernel dimensions and size (from model architecture)
+                    kernel_size = model.kernel_size
+                    n_dim = 3 if weights.ndim == 3 else 2  # synaptic vs axonal
+                    
+                    # Reconstruct the actual kernel
+                    kernel = None
+                    for j in range(weights.shape[0]):  # iterate over kernel elements
+                        k_j = construct_kernel_fast(weights[j], positions[j], std[j], kernel_size, n_dim)
+                        kernel = k_j if kernel is None else kernel + k_j
+                    
+                    # Flip kernel for visualization (same as in inf.py)
+                    kernel = np.flip(np.array(kernel), axis=-1)
+                    
+                    # Plot with dual scale like in inf.py
+                    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+                    max_val = 0.5 #np.max(np.abs(kernel))
+                    
+                    # Full scale
+                    im1 = ax1.imshow(kernel, cmap='RdBu_r', vmin=-max_val, vmax=max_val, aspect='auto')
+                    ax1.set_title(f"{layer_name} Kernel (full scale)")
+                    ax1.set_ylabel('Hidden Dimension')
+                    plt.colorbar(im1, ax=ax1, fraction=0.02)
+                    
+                    # Half scale
+                    im2 = ax2.imshow(kernel, cmap='RdBu_r', vmin=-max_val/2, vmax=max_val/2, aspect='auto')
+                    ax2.set_title(f"{layer_name} Kernel (half scale)")
+                    ax2.set_ylabel('Hidden Dimension')
+                    ax2.set_xlabel('Kernel Position')
+                    plt.colorbar(im2, ax=ax2, fraction=0.02)
+                    
+                    net_dyn_histograms[f"train_params_plot/{layer_name}_kernel"] = wandb.Image(fig)
+                    plt.close(fig)
+                    
+                    # Log kernel statistics
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_mean"] = float(np.mean(kernel))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_mean_abs"] = float(np.mean(np.abs(kernel)))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_std"] = float(np.std(kernel))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_max"] = float(np.max(kernel))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_min"] = float(np.min(kernel))
+                    
+                elif 'DCLSLayer' not in param_name:  # Regular parameters (not DCLS)
+                    if param_value.ndim == 2:  # 2D matrices (Dense weights, etc.)
+                        fig, ax = plt.subplots(figsize=(8, 6))
+                        im = ax.imshow(np.array(param_value), aspect='auto', cmap='RdBu_r', interpolation='nearest', vmin=-0.5, vmax=0.5)
+                        ax.set_title(f"{param_name}")
+                        plt.colorbar(im, ax=ax)
+                        net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
+                        plt.close(fig)
+                    elif param_value.ndim == 1:  # 1D vectors (biases, layer norm scales/shifts)
+                        fig, ax = plt.subplots(figsize=(10, 4))
+                        param_array = np.array(param_value)
+                        # Plot as a horizontal bar or line plot
+                        if len(param_array) <= 256:  # For small vectors, use bar plot
+                            ax.bar(range(len(param_array)), param_array, color='steelblue', alpha=0.7)
+                            ax.set_xlabel('Parameter Index')
+                        else:  # For large vectors, use line plot
+                            ax.plot(param_array, 'steelblue', linewidth=1)
+                            ax.set_xlabel('Parameter Index')
+                        ax.set_ylabel('Value')
+                        ax.set_title(f"{param_name}")
+                        ax.grid(True, alpha=0.3)
+                        net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
+                        plt.close(fig)
+                    
+                    # Log parameter statistics for all parameter types
+                    net_dyn_histograms[f"train_params_stats/{param_name}_mean"] = float(jnp.mean(param_value))
+                    net_dyn_histograms[f"train_params_stats/{param_name}_mean_abs"] = float(jnp.mean(jnp.abs(param_value)))
+                    net_dyn_histograms[f"train_params_stats/{param_name}_std"] = float(jnp.std(param_value))
+                    net_dyn_histograms[f"train_params_stats/{param_name}_max"] = float(jnp.max(param_value))
+                    net_dyn_histograms[f"train_params_stats/{param_name}_min"] = float(jnp.min(param_value))
+        
         # Prepare all logging data in a single dictionary
         current_lr = lr_fn(state.step) if lr_fn is not None else 0.0
         log_dict = {
             "train/learning_rate": current_lr,
+            "train/reg": aux_dict['reg'],
         }
         
         # Add model behavior metrics if enabled
@@ -185,6 +305,10 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         # Add gradient histograms if enabled
         if wandb_gradients:
             log_dict.update(grad_histograms)
+        
+        # Add network dynamics histograms if enabled
+        if wandb_state:
+            log_dict.update(net_dyn_histograms)
 
         epoch_loss.append(loss)
         epoch_accuracy.append(accuracy)
@@ -421,7 +545,7 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classificat
 def create_learning_rate_fn(config, base_learning_rate, steps_per_epoch):
     """Creates learning rate schedule."""
     warmup_fn = optax.linear_schedule(
-        init_value=0., 
+        init_value=0,
         end_value=base_learning_rate,
         transition_steps=config.warmup_epochs * steps_per_epoch)
     
@@ -439,10 +563,14 @@ def create_learning_rate_fn(config, base_learning_rate, steps_per_epoch):
 
 def create_learning_rate_map(args, steps_per_epoch):
     lr_fn = create_learning_rate_fn(args, args.lr, steps_per_epoch) if args.scheduler else args.lr
+    lr_big_fn = create_learning_rate_fn(args, args.lr * 5, steps_per_epoch) if args.scheduler else args.lr_big
     print(lr_fn)
     none_params = []
     adam_params = []
+    adam_big_params = []
     adamw_params = []
+    adamw_big_params = []
+    
     if args.train_std:
         adam_params.append('std')
     else: 
@@ -452,16 +580,38 @@ def create_learning_rate_map(args, steps_per_epoch):
     else:
         none_params.append('weights')
     if args.train_positions:
-        adam_params.append('positions')
+        adam_big_params.append('positions') # adam_big_parasm
     else:
         none_params.append('positions')
-    adam_params.append('bias')
+    
+    
+    if args.bias_optim == 'adamw':
+        adamw_params.append('bias')
+    elif args.bias_optim == 'adamw_big':
+        adamw_big_params.append('bias')
+    elif args.bias_optim == 'adam_big':
+        adam_big_params.append('bias')
+    else:
+        adam_params.append('bias')
+    
+    if args.scale_optim == 'adamw':
+        adamw_params.append('scale')
+    elif args.scale_optim == 'adamw_big':
+        adamw_big_params.append('scale')
+    elif args.scale_optim == 'adam_big':
+        adam_big_params.append('scale')
+    else:
+        adam_params.append('scale')
+
     adamw_params.append('kernel')
     lr_map = {
         'none': {'keys': none_params, 'tx': optax.set_to_zero()},
         'adam': {'keys': adam_params, 'tx': optax.adam(lr_fn)},
-        'adamw': {'keys': adamw_params, 'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay)}
+        'adam_big': {'keys': adam_big_params, 'tx': optax.adam(lr_big_fn)},
+        'adamw': {'keys': adamw_params, 'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay)},
+        'adamw_big': {'keys': adamw_big_params, 'tx': optax.adamw(lr_big_fn, weight_decay=args.weight_decay)},
     }
+    print("Learning rate map:", lr_map)
     return lr_map, lr_fn
 
 
@@ -497,6 +647,8 @@ def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len,
                 labels[path] = 'none'
             elif name in lr_map['adam']['keys']:
                 labels[path] = 'adam'
+            elif name in lr_map['adam_big']['keys']:
+                labels[path] = 'adam_big'
             else:
                 labels[path] = 'adamw'
         return unflatten_dict(labels, sep='/')
@@ -505,7 +657,9 @@ def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len,
     tx = optax.multi_transform(
         {
             'adamw': lr_map['adamw']['tx'],  # weight decay
+            'adamw_big': lr_map['adamw_big']['tx'],  # weight decay with big learning rate
             'adam': lr_map['adam']['tx'],  # adam
+            'adam_big': lr_map['adam_big']['tx'],  # adam with big learning rate
             'none': lr_map['none']['tx'],  # frozen
         },
         param_labels=label_fn  # returns pytree of labels

@@ -39,6 +39,34 @@ def dilated_init():
         return p
     return init
 
+def uniform_gate_init(epsilon=1e-5):
+    ''' 
+    Initialize the bias of the gate using the Uniform Gate Initialization method from the paper:
+    "Improving the Gating Mechanism of Recurrent Neural Networks" by A. Gu et al., ICML 2020
+    b_z \sim \sigma^{-1}( U(0.1, 0.9) ) where sigma^{-1} is the inverse sigmoid function.
+    i.e sigma^{-1}(x) = log(x/(1-x)).
+    For stability, we use a small constant to avoid division by zero: epsilon = 1e-5
+    Args:
+        key: jax random key
+        shape: shape of the bias
+        epsilon: small constant to avoid division by zero
+        dtype: data type of the bias, default is jnp.float32
+    '''
+    def init(key, shape, dtype=jnp.float32):
+        # print(f"epsilon type: {type(epsilon)}, value: {epsilon}")
+        # print(f"1 type: {type(1)}")
+        b_tilde = jax.random.uniform(key, shape, dtype=dtype, minval=epsilon, maxval=1.-epsilon)
+        b = jnp.log(b_tilde / (1 - b_tilde))
+        return b
+    return init
+
+def constant_gate_init(scale=1.0):
+    def init(key, shape, dtype=jnp.float32):
+        b = jnp.ones(shape, dtype=dtype) * scale
+        return b
+    return init
+
+
 class minGRULayer(nn.Module):
     '''
     MGU Layer
@@ -509,8 +537,14 @@ class HeinsenMinGeneralGRULayer(nn.Module):
             if self.skip_recurrent_dense:
                 z_htilde = x
             else:
-                z_htilde = nn.Dense(2*self.hidden_dim, name='Dense_x')(x) # z_htilde: (784, 2*64), assuming hidden_dim = 64
-            z_preact, h_tilde_preact = jnp.split(z_htilde, 2, axis=-1) # z_preact and h_tilde_preact: (784, 64)
+                z_preact = nn.Dense(self.hidden_dim, name='Dense_z', 
+                                    kernel_init=nn.initializers.variance_scaling(0.2, 'fan_in', 'truncated_normal'),
+                                    )(x)
+                                    #bias_init=constant_gate_init(scale=-0.5))(x) 
+                                    #uniform_gate_init())(x) # z_htilde: (784, 2*64), assuming hidden_dim = 64
+                h_tilde_preact = nn.Dense(self.hidden_dim, name='Dense_h')(x)
+
+            # z_preact, h_tilde_preact = jnp.split(z_htilde, 2, axis=-1) # z_preact and h_tilde_preact: (784, 64)
             # z_preact = DCLSLayer(kernel_size=50, dim_out=self.hidden_dim, dim_in=self.hidden_dim)(z_preact) 
             h_new = vj_heinsen_update(z_preact, h_tilde_preact) # h_new: (784, 64)
             # h_new needs to be scaled and shifted for the nonlinear activation to work properly
@@ -522,6 +556,8 @@ class HeinsenMinGeneralGRULayer(nn.Module):
                 out = nn.gelu(h_new-1)
             elif self.rec_act == 'relu':
                 out = nn.relu(h_new-1)
+            # define the dropout layer
+            out = nn.Dropout(rate=self.do_rate, broadcast_dims=(0,), deterministic=not self.training)(out)
             return (h_new, z_preact, h_tilde_preact, out)
         #{'h_new': h_new, 'z_preact': z_preact, 'h_tilde_preact': h_tilde_preact, 'out': out, 'out_preact': out_preact}
         
@@ -561,6 +597,7 @@ class RNN_General_Backbone(nn.Module):
     enable_rec: bool = True
     recurrent_layer: nn.Module = HeinsenMinGeneralGRULayer
     rec_act: str = 'linear' # 'linear', 'gelu', 'relu'
+    rec_ln: bool = False # whether to apply LayerNorm before the recurrent layer
     # CHANNEL MIXING
     enable_cm: bool = True
     channel_mixing: str = 'none' # 'none', 'mlp', 'glu'
@@ -578,7 +615,10 @@ class RNN_General_Backbone(nn.Module):
 
         # ========== ENCODER ==========
         if self.encoder:
-            x = nn.Dense(self.hidden_dim[0], name='Encoder')(x)
+            # make a Dense layer without bias
+            x = nn.Dense(self.hidden_dim[0], name='Encoder', use_bias=False)(x)
+
+        # x = nn.LayerNorm(name='LayerNormInput')(x) # normalize the input
 
         # ========== SEQUENCE BLOCKS ==========
         state_hist = []
@@ -630,6 +670,9 @@ class RNN_General_Backbone(nn.Module):
             
             # ========== RECURRENT BLOCK ==========
             if self.enable_rec == True:
+                if self.rec_ln:
+                    x = nn.LayerNorm(name=f'LayerNormRec_{i}')(x)
+
                 if self.element_skip:
                     # print(f'{x.shape=}')
                     # print(f'{conv_skip.shape=}')
@@ -683,10 +726,10 @@ class RNN_General_Backbone(nn.Module):
 
             # ========== POST-NORMALIZATION ==========
             if self.postnorm: 
-                x = nn.LayerNorm()(x) 
+                x = nn.LayerNorm(name=f'LayerNormPost_{i}')(x) 
         
         # ========== OUTPUT BLOCK ==========
-        out = nn.Dense(self.out_dim, name='Dense_Out')(x)#[0])
+        out = nn.Dense(self.out_dim, use_bias=False, name='Dense_Out')(x)#[0])
         return state_hist, out
     
 # in_axes = 0: the first dimension of the input is the batch size

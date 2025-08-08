@@ -10,7 +10,7 @@ px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
 from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, \
         create_lra_imdb_classification_dataset, create_lra_listops_classification_dataset, \
-        create_lra_path32_classification_dataset, \
+        create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset, \
         prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories, \
         compute_class_weights 
 from plots import plot_dynamics
@@ -40,7 +40,8 @@ def main(args=None):
         'mnist': create_mnist_classification_dataset,
         'imdb': create_lra_imdb_classification_dataset,
         'listops': create_lra_listops_classification_dataset,
-        'path': create_lra_path32_classification_dataset
+        'path': create_lra_path32_classification_dataset,
+        'pathx': create_lra_pathx_classification_dataset
     }
     if args.dataset in ['cifar', 'mnist']:
         trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
@@ -49,7 +50,7 @@ def main(args=None):
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
         batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
-    elif args.dataset == 'path':
+    elif args.dataset in ['path', 'pathx']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
         batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
@@ -92,11 +93,11 @@ def main(args=None):
         enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
         wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
         dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
-        dcls_fft=False, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
+        dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
         dcls_heterogeneous_weights=args.heterogeneous_weights, 
         dcls_heterogeneous_positions=args.heterogeneous_positions,
         dcls_heterogeneous_std=args.heterogeneous_std,
-        enable_rec=args.enable_rec, rec_act=args.rec_act,
+        enable_rec=args.enable_rec, rec_act=args.rec_act, rec_ln=args.rec_ln,
         enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
         latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
         postnorm=args.postnorm)
@@ -146,7 +147,7 @@ def main(args=None):
     # 'batch_loss' = [loss_sample1, loss_sample2, ..., loss_sampleBS]
     # 'loss' = [loss_batch1, loss_batch2, ..., loss_batchN] where N is the number of batches and loss_batchX = mean([loss_sample1, loss_sample2, ..., loss_sampleBS])
     keys_to_track = [] #['grads', 'loss', 'state', 'batch_x', 'batch_y'] # ['batch_x', 'batch_y', 'state', 'grads']
-    inner_keys_to_track = [] #['batch_loss', 'net_dyn']
+    inner_keys_to_track = ['net_dyn'] #['batch_loss', 'net_dyn']
     aux_dict_training = []
 
     best_val_acc = 0.0
@@ -164,7 +165,7 @@ def main(args=None):
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
-                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, in_dim=IN_DIM, seq_len=SEQ_LENGTH,
+                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, wandb_state=getattr(args, 'wandb_state', False), in_dim=IN_DIM, seq_len=SEQ_LENGTH,
                         grad_clip_norm=args.grad_clip_norm,
                         log_model_behavior=args.log_model_behavior, epoch_num=epoch,
                         class_weights=class_weights)
@@ -186,14 +187,22 @@ def main(args=None):
                 elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
             elif args.dataset == 'listops':
                 if best_val_acc > 0.55: improvement = 0.003 # 0.3%
+            elif args.dataset == 'path':
+                if best_val_acc > 0.88: improvement = 0.002 # 0.2%
+            elif args.dataset == 'pathx':
+                if best_val_acc > 0.93: improvement = 0.002 # 0.2%
+            elif args.dataset == 'imdb':
+                if best_val_acc > 0.85: improvement = 0.003 # 0.3%
+
 
             if args.dataset != 'imdb':
                 test_loss, test_acc, test_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
                                                             log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test")
-                checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
             else:
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
+            
+            checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
 
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
@@ -265,13 +274,14 @@ def main(args=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
     parser.add_argument("--sweep", action="store_true", help="Run in sweep mode using wandb sweep configuration")
+    parser.add_argument("--sim_name", type=str, default="gen", help="Simulation name for wandb")
     args_cli = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args_cli.gpu)
@@ -327,7 +337,7 @@ if __name__ == "__main__":
         # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"
         
-        wandb.init(project="DenGRU_general", name='gen')
+        wandb.init(project="DenGRU_general", name=f"{args_cli.sim_name}")
         wandb.config.update(args)
         
         main(args)

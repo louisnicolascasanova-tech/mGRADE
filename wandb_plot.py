@@ -398,13 +398,28 @@ def plot_grad_norms(entity, project, run_id, from_10k=False, ema=False, ema_coef
         
         print(f"Gradient statistics saved to: {stats_file}")
         
-        # Create HeinsenMinGeneralGRULayer figure
-        fig3, (ax_gru1, ax_gru2) = plt.subplots(1, 2, figsize=(16, 6))
+        # Create HeinsenMinGeneralGRULayer figure - size depends on components available
+        # Check which components are available first to determine subplot layout
+        temp_old_components = ['Dense_x/kernel', 'Dense_x/bias']
+        temp_new_components = ['Dense_h/kernel', 'Dense_h/bias', 'Dense_z/kernel', 'Dense_z/bias']
+        temp_has_new = any(f'grad_norm/HeinsenMinGeneralGRULayer_0/{comp}' in history.columns for comp in temp_new_components)
         
-        # HeinsenMinGeneralGRULayer components to plot
-        gru_components = ['Dense_x/kernel', 'Dense_x/bias']
-        gru_titles = ['Dense_x Kernel', 'Dense_x Bias']
-        gru_axes = [ax_gru1, ax_gru2]
+        if temp_has_new:
+            # New components: 4 subplots in 2x2 layout
+            fig3, ((ax_gru1, ax_gru2), (ax_gru3, ax_gru4)) = plt.subplots(2, 2, figsize=(16, 12))
+            gru_axes = [ax_gru1, ax_gru2, ax_gru3, ax_gru4]
+        else:
+            # Old components: 2 subplots in 1x2 layout
+            fig3, (ax_gru1, ax_gru2) = plt.subplots(1, 2, figsize=(16, 6))
+            gru_axes = [ax_gru1, ax_gru2]
+        
+        # Set components and titles based on what's available
+        if temp_has_new:
+            gru_components = temp_new_components
+            gru_titles = ['Dense_h Kernel', 'Dense_h Bias', 'Dense_z Kernel', 'Dense_z Bias']
+        else:
+            gru_components = temp_old_components
+            gru_titles = ['Dense_x Kernel', 'Dense_x Bias']
         
         for idx, (component, title, ax) in enumerate(zip(gru_components, gru_titles, gru_axes)):
             
@@ -414,6 +429,7 @@ def plot_grad_norms(entity, project, run_id, from_10k=False, ema=False, ema_coef
                 col_name = f'grad_norm/HeinsenMinGeneralGRULayer_{layer_idx}/{component}'
                 if col_name in history.columns:
                     data = history[col_name]
+                    print(data)
                     max_val, mean_val = compute_stats(data)
                     smoothed_data = apply_ema(data)
                     ax.plot(x_axis, smoothed_data, 
@@ -449,7 +465,7 @@ def plot_grad_norms(entity, project, run_id, from_10k=False, ema=False, ema_coef
             layer_stats = {}
             
             for component in gru_components:
-                component_key = component.replace('/', '_').replace('_x', '_x')
+                component_key = component.replace('/', '_')
                 
                 # Grad norm
                 col_name = f'grad_norm/HeinsenMinGeneralGRULayer_{layer_idx}/{component}'
