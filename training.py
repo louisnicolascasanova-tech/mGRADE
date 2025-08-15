@@ -114,7 +114,7 @@ def plt_confusion_matrix(cm, class_labels):
     return Image.open(buf)
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
-              wandb_gradients=False, wandb_state=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, class_weights=None):
+              wandb_gradients=False, wandb_states=False, wandb_matrices=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, class_weights=None):
     """Train for a single epoch."""
     model = model_cls(training=True)
     epoch_loss = []
@@ -149,7 +149,21 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
             all_predictions.extend(np.array(aux_dict['predictions']))
             all_targets.extend(np.array(batch_y))
             all_confidences.extend(np.array(aux_dict['max_probs']))
-        
+            
+            
+            
+            # find the prediction class distribution
+            preds = np.array(aux_dict['predictions'])
+            targets = np.array(batch_y)
+            unique_classes = np.unique(targets) # np.linspace(0, 9, num=10, dtype=int)  # Assuming classes are 0-9 for classification tasks
+            if len(unique_classes) > 4: 
+                unique_classes = np.linspace(0, 9, num=10, dtype=int)  # For larger classes, use a fixed range
+            else: 
+                unique_classes = np.linspace(0, 1, num=2, dtype=int)  # For binary classification, use 0 and 1
+            unique_pred_classes = np.unique(preds)
+            pred_dist = np.bincount(preds, minlength=len(unique_classes))
+            target_dist = np.bincount(targets, minlength=len(unique_classes))
+                    
         # Compute gradient statistics per layer
         flat_grads = flatten_dict(grads, sep='/')
         grad_variances = {}
@@ -167,7 +181,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         
         # Compute network dynamics statistics per layer
         net_dyn_histograms = {}
-        if 'net_dyn' in aux_dict and wandb_state and batch_id % 500 == 0:
+        if 'net_dyn' in aux_dict and wandb_states and batch_id % 500 == 0:
             net_dyn = aux_dict['net_dyn']
             for layer_idx, layer_dynamics in enumerate(net_dyn):
                 h_new, z_preact, h_tilde_preact, out = layer_dynamics
@@ -197,7 +211,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                 net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_min_layer_{layer_idx}"] = float(jnp.min(h_tilde_preact))
         
         # Log parameter matrices as images every 100 steps
-        if wandb_state and batch_id % 500 == 0:
+        if wandb_states and batch_id % 500 == 0:
             from model import construct_kernel_fast
             
             flat_params = flatten_dict(state.params, sep='/')
@@ -225,55 +239,57 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                     kernel = np.flip(np.array(kernel), axis=-1)
                     
                     # Plot with dual scale like in inf.py
-                    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-                    max_val = 0.5 #np.max(np.abs(kernel))
-                    
-                    # Full scale
-                    im1 = ax1.imshow(kernel, cmap='RdBu_r', vmin=-max_val, vmax=max_val, aspect='auto')
-                    ax1.set_title(f"{layer_name} Kernel (full scale)")
-                    ax1.set_ylabel('Hidden Dimension')
-                    plt.colorbar(im1, ax=ax1, fraction=0.02)
-                    
-                    # Half scale
-                    im2 = ax2.imshow(kernel, cmap='RdBu_r', vmin=-max_val/2, vmax=max_val/2, aspect='auto')
-                    ax2.set_title(f"{layer_name} Kernel (half scale)")
-                    ax2.set_ylabel('Hidden Dimension')
-                    ax2.set_xlabel('Kernel Position')
-                    plt.colorbar(im2, ax=ax2, fraction=0.02)
-                    
-                    net_dyn_histograms[f"train_params_plot/{layer_name}_kernel"] = wandb.Image(fig)
-                    plt.close(fig)
+                    if wandb_matrices and batch_id % 2400 == 0:
+                        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+                        max_val = 0.5 #np.max(np.abs(kernel))
+                        
+                        # Full scale
+                        im1 = ax1.imshow(kernel, cmap='RdBu_r', vmin=-max_val, vmax=max_val, aspect='auto')
+                        ax1.set_title(f"{layer_name} Kernel (full scale)")
+                        ax1.set_ylabel('Hidden Dimension')
+                        plt.colorbar(im1, ax=ax1, fraction=0.02)
+                        
+                        # Half scale
+                        im2 = ax2.imshow(kernel, cmap='RdBu_r', vmin=-max_val/2, vmax=max_val/2, aspect='auto')
+                        ax2.set_title(f"{layer_name} Kernel (half scale)")
+                        ax2.set_ylabel('Hidden Dimension')
+                        ax2.set_xlabel('Kernel Position')
+                        plt.colorbar(im2, ax=ax2, fraction=0.02)
+                        
+                        net_dyn_histograms[f"train_params_plot/{layer_name}_kernel"] = wandb.Image(fig)
+                        plt.close(fig)
                     
                     # Log kernel statistics
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_mean"] = float(np.mean(kernel))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_mean_abs"] = float(np.mean(np.abs(kernel)))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_std"] = float(np.std(kernel))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_max"] = float(np.max(kernel))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_kernel_min"] = float(np.min(kernel))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_mean"] = float(np.mean(weights))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_mean_abs"] = float(np.mean(np.abs(weights)))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_std"] = float(np.std(weights))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_max"] = float(np.max(weights))
+                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_min"] = float(np.min(weights))
                     
                 elif 'DCLSLayer' not in param_name:  # Regular parameters (not DCLS)
-                    if param_value.ndim == 2:  # 2D matrices (Dense weights, etc.)
-                        fig, ax = plt.subplots(figsize=(8, 6))
-                        im = ax.imshow(np.array(param_value), aspect='auto', cmap='RdBu_r', interpolation='nearest', vmin=-0.5, vmax=0.5)
-                        ax.set_title(f"{param_name}")
-                        plt.colorbar(im, ax=ax)
-                        net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
-                        plt.close(fig)
-                    elif param_value.ndim == 1:  # 1D vectors (biases, layer norm scales/shifts)
-                        fig, ax = plt.subplots(figsize=(10, 4))
-                        param_array = np.array(param_value)
-                        # Plot as a horizontal bar or line plot
-                        if len(param_array) <= 256:  # For small vectors, use bar plot
-                            ax.bar(range(len(param_array)), param_array, color='steelblue', alpha=0.7)
-                            ax.set_xlabel('Parameter Index')
-                        else:  # For large vectors, use line plot
-                            ax.plot(param_array, 'steelblue', linewidth=1)
-                            ax.set_xlabel('Parameter Index')
-                        ax.set_ylabel('Value')
-                        ax.set_title(f"{param_name}")
-                        ax.grid(True, alpha=0.3)
-                        net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
-                        plt.close(fig)
+                    if wandb_matrices and batch_id % 2400 == 0:
+                        if param_value.ndim == 2:  # 2D matrices (Dense weights, etc.)
+                            fig, ax = plt.subplots(figsize=(8, 6))
+                            im = ax.imshow(np.array(param_value), aspect='auto', cmap='RdBu_r', interpolation='nearest', vmin=-0.5, vmax=0.5)
+                            ax.set_title(f"{param_name}")
+                            plt.colorbar(im, ax=ax)
+                            net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
+                            plt.close(fig)
+                        elif param_value.ndim == 1:  # 1D vectors (biases, layer norm scales/shifts)
+                            fig, ax = plt.subplots(figsize=(10, 4))
+                            param_array = np.array(param_value)
+                            # Plot as a horizontal bar or line plot
+                            if len(param_array) <= 256:  # For small vectors, use bar plot
+                                ax.bar(range(len(param_array)), param_array, color='steelblue', alpha=0.7)
+                                ax.set_xlabel('Parameter Index')
+                            else:  # For large vectors, use line plot
+                                ax.plot(param_array, 'steelblue', linewidth=1)
+                                ax.set_xlabel('Parameter Index')
+                            ax.set_ylabel('Value')
+                            ax.set_title(f"{param_name}")
+                            ax.grid(True, alpha=0.3)
+                            net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
+                            plt.close(fig)
                     
                     # Log parameter statistics for all parameter types
                     net_dyn_histograms[f"train_params_stats/{param_name}_mean"] = float(jnp.mean(param_value))
@@ -295,19 +311,25 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                 "train/mean_confidence": aux_dict['mean_confidence'],
                 "train/confidence_std": jnp.std(aux_dict['max_probs']),
             })
+            # Add class distribution metrics
+            for i, class_idx in enumerate(np.unique(all_targets)):
+                log_dict.update({
+                    f"train/pred_class_{class_idx}_ratio": pred_dist[i] / len(preds),
+                    f"train/target_class_{class_idx}_ratio": target_dist[i] / len(preds)
+                })
         
-        # Add gradient variances and norms per layer
-        for key, var in grad_variances.items():
-            log_dict[f"grad_variance/{key}"] = var
-        for key, norm in grad_norms.items():
-            log_dict[f"grad_norm/{key}"] = norm
             
         # Add gradient histograms if enabled
         if wandb_gradients:
             log_dict.update(grad_histograms)
+            # Add gradient variances and norms per layer
+            for key, var in grad_variances.items():
+                log_dict[f"grad_variance/{key}"] = var
+            for key, norm in grad_norms.items():
+                log_dict[f"grad_norm/{key}"] = norm
         
         # Add network dynamics histograms if enabled
-        if wandb_state:
+        if wandb_states:
             log_dict.update(net_dyn_histograms)
 
         epoch_loss.append(loss)
@@ -338,10 +360,10 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         
         # Add gradient clipping info to the log dictionary
         log_dict.update({
-            "train/grad_norm": grad_norm,
-            "train/grad_norm_log": jnp.log10(grad_norm + 1e-8),
-            "train/grad_norm_post_clip": post_clip_grad_norm,
-            "train/grad_clipped": int(grad_norm > grad_clip_norm)  # Convert bool to int
+            "train_grad/norm": grad_norm,
+            "train_grad/norm_log": jnp.log10(grad_norm + 1e-8),
+            "train_grad/norm_post_clip": post_clip_grad_norm,
+            "train_grad/norm_clipped": int(grad_norm > grad_clip_norm)  # Convert bool to int
         })
         
         # Single consolidated wandb log call
@@ -380,20 +402,20 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         
         # Log epoch-level metrics
         epoch_metrics = {
-            "train/mean_confidence": epoch_mean_confidence,
-            "train/confidence_std": epoch_confidence_std,
+            "train_epoch/mean_confidence": epoch_mean_confidence,
+            "train_epoch/confidence_std": epoch_confidence_std,
         }
         
         # Add class distribution metrics
         for i, class_idx in enumerate(unique_classes):
-            epoch_metrics[f"train/pred_class_{class_idx}_ratio"] = pred_dist[i] / len(all_predictions)
-            epoch_metrics[f"train/target_class_{class_idx}_ratio"] = target_dist[i] / len(all_targets)
+            epoch_metrics[f"train_epoch/pred_class_{class_idx}_ratio"] = pred_dist[i] / len(all_predictions)
+            epoch_metrics[f"train_epoch/target_class_{class_idx}_ratio"] = target_dist[i] / len(all_targets)
         
         # Classification report and confusion matrix (only for small number of classes to avoid clutter)
         if len(unique_classes) <= 10:
             cm = confusion_matrix(all_targets, all_predictions, labels=unique_classes)
             # Log confusion matrix as a wandb table or image
-            epoch_metrics["train/confusion_matrix"] = wandb.Image(
+            epoch_metrics["train_epoch/confusion_matrix"] = wandb.Image(
                 plt_confusion_matrix(cm, unique_classes)
             )
             
@@ -409,20 +431,20 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
             for class_idx in unique_classes:
                 class_key = str(class_idx)
                 if class_key in class_report:
-                    epoch_metrics[f"train/precision_class_{class_idx}"] = class_report[class_key]['precision']
-                    epoch_metrics[f"train/recall_class_{class_idx}"] = class_report[class_key]['recall']
-                    epoch_metrics[f"train/f1_class_{class_idx}"] = class_report[class_key]['f1-score']
+                    epoch_metrics[f"train_epoch/precision_class_{class_idx}"] = class_report[class_key]['precision']
+                    epoch_metrics[f"train_epoch/recall_class_{class_idx}"] = class_report[class_key]['recall']
+                    epoch_metrics[f"train_epoch/f1_class_{class_idx}"] = class_report[class_key]['f1-score']
             
             # Log macro and weighted averages
             if 'macro avg' in class_report:
-                epoch_metrics["train/macro_avg_precision"] = class_report['macro avg']['precision']
-                epoch_metrics["train/macro_avg_recall"] = class_report['macro avg']['recall']
-                epoch_metrics["train/macro_avg_f1"] = class_report['macro avg']['f1-score']
+                epoch_metrics["train_epoch/macro_avg_precision"] = class_report['macro avg']['precision']
+                epoch_metrics["train_epoch/macro_avg_recall"] = class_report['macro avg']['recall']
+                epoch_metrics["train_epoch/macro_avg_f1"] = class_report['macro avg']['f1-score']
             
             if 'weighted avg' in class_report:
-                epoch_metrics["train/weighted_avg_precision"] = class_report['weighted avg']['precision']
-                epoch_metrics["train/weighted_avg_recall"] = class_report['weighted avg']['recall']
-                epoch_metrics["train/weighted_avg_f1"] = class_report['weighted avg']['f1-score']
+                epoch_metrics["train_epoch/weighted_avg_precision"] = class_report['weighted avg']['precision']
+                epoch_metrics["train_epoch/weighted_avg_recall"] = class_report['weighted avg']['recall']
+                epoch_metrics["train_epoch/weighted_avg_f1"] = class_report['weighted avg']['f1-score']
         
         # Log epoch metrics with custom step to avoid conflicts  
         wandb.log(epoch_metrics, step=state.step, commit=False)
@@ -450,6 +472,29 @@ def eval_model(state, model, images, labels, out_dim):
     mean_confidence = jnp.mean(max_probs)
     
     return loss, accuracy, predictions, max_probs, mean_confidence
+
+@partial(jax.jit, static_argnames=('model', 'out_dim'))
+def inf_model(state, model, images, labels, out_dim):
+    """Computes loss, accuracy, and predictions for a single batch."""
+
+    def loss_fn(params):
+        ndh, out_hist = model.apply({'params': params}, images)
+        logits = out_hist.mean(axis=1)
+        one_hot = jax.nn.one_hot(labels, out_dim)
+        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
+        return loss, ndh, logits
+
+    loss, ndh, logits = loss_fn(state.params)
+    probs = jax.nn.softmax(logits)
+    predictions = jnp.argmax(logits, -1)
+    accuracy = jnp.mean(predictions == labels)
+    
+    # Compute confidence metrics
+    max_probs = jnp.max(probs, axis=-1)
+    mean_confidence = jnp.mean(max_probs)
+    
+    return loss, accuracy, ndh
+
 
 def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classification_report=True, dataset_name="val"):
     # Compute average loss & accuracy
@@ -564,54 +609,90 @@ def create_learning_rate_fn(config, base_learning_rate, steps_per_epoch):
 def create_learning_rate_map(args, steps_per_epoch):
     lr_fn = create_learning_rate_fn(args, args.lr, steps_per_epoch) if args.scheduler else args.lr
     lr_big_fn = create_learning_rate_fn(args, args.lr * 5, steps_per_epoch) if args.scheduler else args.lr_big
+    
+    # Create layer-specific learning rates if lr_factors is provided
+    layer_lr_fns = {}
+    if hasattr(args, 'lr_factors') and args.lr_factors is not None:
+        for layer_idx, factor in enumerate(args.lr_factors):
+            layer_lr_fns[layer_idx] = create_learning_rate_fn(args, args.lr * factor, steps_per_epoch) if args.scheduler else args.lr * factor
+    
     print(lr_fn)
-    none_params = []
-    adam_params = []
-    adam_big_params = []
-    adamw_params = []
-    adamw_big_params = []
     
+    # Layer-type and parameter-specific rules
+    # Format: (layer_pattern, param_name) -> optimizer_type
+    param_rules = []
+    
+    # DCLS-specific parameters (with train/freeze control)
     if args.train_std:
-        adam_params.append('std')
+        param_rules.append(('DCLSLayer', 'std', 'adam'))
     else: 
-        none_params.append('std')
+        param_rules.append(('DCLSLayer', 'std', 'none'))
+    
+    # Layer-specific bias optimization (only for layers that have bias)
+    mlp_bias_optim = getattr(args, 'mlp_bias_optim', 'adamw_small') 
+    gru_bias_optim = getattr(args, 'gru_bias_optim', args.bias_optim)
+    postnorm_bias_optim = getattr(args, 'postnorm_bias_optim', 'adamw_small')
+    
+    param_rules.extend([
+        ('MLP', 'bias', mlp_bias_optim),
+        ('HeinsenMinGeneralGRULayer', 'bias', gru_bias_optim),
+        ('LayerNormPost', 'bias', postnorm_bias_optim),
+        ('Encoder', 'bias', args.bias_optim),
+        ('Dense_Out', 'bias', args.bias_optim),
+    ])
+    
+    # DCLS weights and positions (with train/freeze control)
     if args.train_weights:
-        adamw_params.append('weights')
+        dcls_weights_optim = getattr(args, 'dcls_weights_optim', 'adamw')
+        param_rules.append(('DCLSLayer', 'weights', dcls_weights_optim))
     else:
-        none_params.append('weights')
+        param_rules.append(('DCLSLayer', 'weights', 'none'))
+        
     if args.train_positions:
-        adam_big_params.append('positions') # adam_big_parasm
+        dcls_positions_optim = getattr(args, 'dcls_positions_optim', 'adam_big')
+        param_rules.append(('DCLSLayer', 'positions', dcls_positions_optim))
     else:
-        none_params.append('positions')
+        param_rules.append(('DCLSLayer', 'positions', 'none'))
     
+    # Layer-specific scale optimization (only for layers that have scale)
+    mlp_scale_optim = getattr(args, 'mlp_scale_optim', 'adamw_small')
+    postnorm_scale_optim = getattr(args, 'postnorm_scale_optim', 'adamw_small')
     
-    if args.bias_optim == 'adamw':
-        adamw_params.append('bias')
-    elif args.bias_optim == 'adamw_big':
-        adamw_big_params.append('bias')
-    elif args.bias_optim == 'adam_big':
-        adam_big_params.append('bias')
-    else:
-        adam_params.append('bias')
+    param_rules.extend([
+        ('MLP', 'scale', mlp_scale_optim),           # MLP LayerNorm scale
+        ('LayerNormPost', 'scale', postnorm_scale_optim),  # Post-layer normalization scale
+    ])
     
-    if args.scale_optim == 'adamw':
-        adamw_params.append('scale')
-    elif args.scale_optim == 'adamw_big':
-        adamw_big_params.append('scale')
-    elif args.scale_optim == 'adam_big':
-        adam_big_params.append('scale')
-    else:
-        adam_params.append('scale')
+    # Layer-specific kernel optimization
+    mlp_kernel_optim = getattr(args, 'mlp_kernel_optim', 'adamw')
+    gru_kernel_optim = getattr(args, 'gru_kernel_optim', 'adamw')
+    
+    param_rules.extend([
+        ('MLP', 'kernel', mlp_kernel_optim),
+        ('HeinsenMinGeneralGRULayer', 'kernel', gru_kernel_optim),
+        ('Encoder', 'kernel', 'adamw'),
+        ('Dense_Out', 'kernel', 'adamw'),
+    ])
 
-    adamw_params.append('kernel')
     lr_map = {
-        'none': {'keys': none_params, 'tx': optax.set_to_zero()},
-        'adam': {'keys': adam_params, 'tx': optax.adam(lr_fn)},
-        'adam_big': {'keys': adam_big_params, 'tx': optax.adam(lr_big_fn)},
-        'adamw': {'keys': adamw_params, 'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay)},
-        'adamw_big': {'keys': adamw_big_params, 'tx': optax.adamw(lr_big_fn, weight_decay=args.weight_decay)},
+        'none': {'tx': optax.set_to_zero()},
+        'adam': {'tx': optax.adam(lr_fn)},
+        'adam_big': {'tx': optax.adam(lr_big_fn)},
+        'adamw': {'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay)},
+        'adamw_big': {'tx': optax.adamw(lr_big_fn, weight_decay=args.weight_decay)},
+        'adamw_small': {'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay / 10)},
+        'param_rules': param_rules,  # Store rules for label_fn
+        'layer_lr_fns': layer_lr_fns  # Store layer-specific learning rates
     }
-    print("Learning rate map:", lr_map)
+    
+    # Add layer-specific optimizers if lr_factors is provided
+    if layer_lr_fns:
+        for layer_idx, layer_lr_fn in layer_lr_fns.items():
+            lr_map[f'adam_layer_{layer_idx}'] = {'tx': optax.adam(layer_lr_fn)}
+            lr_map[f'adamw_layer_{layer_idx}'] = {'tx': optax.adamw(layer_lr_fn, weight_decay=args.weight_decay)}
+    
+    print("Learning rate map optimizers:", {k: v for k, v in lr_map.items() if k != 'param_rules'})
+    print(f"Parameter rules: {len(param_rules)} rules defined")
     return lr_map, lr_fn
 
 
@@ -641,27 +722,65 @@ def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len,
     def label_fn(params):
         flat = flatten_dict(params, sep='/')
         labels = {}
+        param_rules = lr_map['param_rules']
+        layer_lr_fns = lr_map['layer_lr_fns']
+        
         for path, _ in flat.items():
-            name = path.split('/')[-1]  # last part of the path
-            if name in lr_map['none']['keys']:
-                labels[path] = 'none'
-            elif name in lr_map['adam']['keys']:
-                labels[path] = 'adam'
-            elif name in lr_map['adam_big']['keys']:
-                labels[path] = 'adam_big'
-            else:
-                labels[path] = 'adamw'
+            path_parts = path.split('/')
+            param_name = path_parts[-1]  # last part (e.g., 'bias', 'kernel')
+            
+            # Find layer type and layer index from path
+            layer_type = None
+            layer_idx = None
+            for part in path_parts:
+                for layer_pattern in ['DCLSLayer', 'MLP', 'HeinsenMinGeneralGRULayer', 'LayerNormPost', 'Encoder', 'Dense_Out']:
+                    if layer_pattern in part:
+                        layer_type = layer_pattern
+                        # Extract layer index (e.g., 'DCLSLayer_0' -> 0)
+                        if '_' in part and part.split('_')[-1].isdigit():
+                            layer_idx = int(part.split('_')[-1])
+                        break
+                if layer_type:
+                    break
+            
+            # Match against parameter rules
+            matched_optimizer = 'adamw'  # default fallback
+            for rule_layer_type, rule_param_name, optimizer_type in param_rules:
+                if layer_type and rule_layer_type in layer_type:
+                    if param_name == rule_param_name:
+                        matched_optimizer = optimizer_type
+                        break
+            
+            # Apply layer-specific learning rate if available
+            if layer_lr_fns and layer_idx is not None and layer_idx in layer_lr_fns:
+                # Convert base optimizer to layer-specific version
+                if matched_optimizer == 'adam':
+                    matched_optimizer = f'adam_layer_{layer_idx}'
+                elif matched_optimizer == 'adamw':
+                    matched_optimizer = f'adamw_layer_{layer_idx}'
+                # Keep other optimizers (none, adam_big, adamw_big) as-is for now
+            
+            labels[path] = matched_optimizer
+        
         return unflatten_dict(labels, sep='/')
 
     # 2. Define optimizer transformations
+    optimizer_transforms = {
+        'adamw': lr_map['adamw']['tx'],  # weight decay
+        'adamw_big': lr_map['adamw_big']['tx'],  # weight decay with big learning rate
+        'adamw_small': lr_map['adamw_small']['tx'],  # weight decay / 10
+        'adam': lr_map['adam']['tx'],  # adam
+        'adam_big': lr_map['adam_big']['tx'],  # adam with big learning rate
+        'none': lr_map['none']['tx'],  # frozen
+    }
+    
+    # Add layer-specific optimizers if they exist
+    for opt_key, opt_value in lr_map.items():
+        if opt_key.startswith('adam_layer_') or opt_key.startswith('adamw_layer_'):
+            optimizer_transforms[opt_key] = opt_value['tx']
+    
     tx = optax.multi_transform(
-        {
-            'adamw': lr_map['adamw']['tx'],  # weight decay
-            'adamw_big': lr_map['adamw_big']['tx'],  # weight decay with big learning rate
-            'adam': lr_map['adam']['tx'],  # adam
-            'adam_big': lr_map['adam_big']['tx'],  # adam with big learning rate
-            'none': lr_map['none']['tx'],  # frozen
-        },
+        optimizer_transforms,
         param_labels=label_fn  # returns pytree of labels
     )
 

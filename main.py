@@ -88,8 +88,11 @@ def main(args=None):
     model_cls = partial(
         BatchRNN_General, 
         n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
-        encoder=args.encoder,
+        encoder=getattr(args, 'encoder', True), 
+        encoder_scale=getattr(args, 'encoder_scale', 1.0),
+        encoder_bias=getattr(args, 'encoder_bias', True),
         layer_skip=args.layer_skip, element_skip=args.element_skip,
+        # CONVOLUTION
         enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
         wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
         dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
@@ -97,10 +100,23 @@ def main(args=None):
         dcls_heterogeneous_weights=args.heterogeneous_weights, 
         dcls_heterogeneous_positions=args.heterogeneous_positions,
         dcls_heterogeneous_std=args.heterogeneous_std,
-        enable_rec=args.enable_rec, rec_act=args.rec_act, rec_ln=args.rec_ln,
+        weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
+        conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
+        # RECURRENT
+        enable_rec=args.enable_rec, rec_act=args.rec_act, 
+        rec_ln=getattr(args, 'rec_ln', False),
+        dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
+        dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
+        dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
+        dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
+        # CHANNEL MIXING
         enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
+        cm_ln=getattr(args, 'cm_ln', False),
+        # COMPRESSION
         latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
-        postnorm=args.postnorm)
+        postnorm=args.postnorm,
+        decoder_bias=args.decoder_bias
+    )
                         
     # model_mingru = BatchRNN(HIDDEN_DIM, 10, args.n_layers, recurrent_layer=minGRULayer)
     steps_per_epoch = len(trainloader) 
@@ -159,13 +175,19 @@ def main(args=None):
     test_metrics = {}
     ovf_count = 0
     bad_count = 0
+    patience = 0
+    lim_patience = 10
     for epoch in range(args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
                         lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
-                        lr_fn=lr_fn, wandb_gradients=args.wandb_gradients, wandb_state=getattr(args, 'wandb_state', False), in_dim=IN_DIM, seq_len=SEQ_LENGTH,
+                        lr_fn=lr_fn, 
+                        wandb_gradients=getattr(args, 'wandb_gradients', False),
+                        wandb_states=getattr(args, 'wandb_states', False), 
+                        wandb_matrices=getattr(args, 'wandb_matrices', False),
+                        in_dim=IN_DIM, seq_len=SEQ_LENGTH,
                         grad_clip_norm=args.grad_clip_norm,
                         log_model_behavior=args.log_model_behavior, epoch_num=epoch,
                         class_weights=class_weights)
@@ -174,8 +196,13 @@ def main(args=None):
         if break_flag:
             break
         
-        val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                  log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") # TODO: create a val loader for imdb
+        if args.dataset != 'imdb':
+            val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                                                        log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") 
+        else: 
+            val_loss, val_acc, val_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                                                        log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") # TODO: create a val loader for imdb
+        
         if val_acc > best_val_acc + improvement: 
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
@@ -191,6 +218,7 @@ def main(args=None):
                 if best_val_acc > 0.88: improvement = 0.002 # 0.2%
             elif args.dataset == 'pathx':
                 if best_val_acc > 0.93: improvement = 0.002 # 0.2%
+                elif best_val_acc > 0.88: improvement = 0.005 # 0.5%
             elif args.dataset == 'imdb':
                 if best_val_acc > 0.85: improvement = 0.003 # 0.3%
 
@@ -206,6 +234,10 @@ def main(args=None):
 
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
+            patience += 1
+            if patience >= lim_patience and best_val_acc < 0.5:
+                print(f"Early stopping at epoch {epoch} due to low validation accuracy ({best_val_acc:.2f}) and patience limit reached ({patience}/{lim_patience})")
+                break
         
         # Prepare main logging dictionary
         main_metrics = {
@@ -259,6 +291,13 @@ def main(args=None):
             print(f'BAD COUNT: {bad_count}')
         else:
             bad_count = 0
+        
+
+        # if epoch == 4: 
+        #     print("CANCELLING: REACHED 5 EPOCHS")
+        #     print(f'Saving the model at epoch {epoch}, in directory {WU_DIR}')
+        #     checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
+        #     break
 
 
     # Save training dynamics (only in non-sweep mode)
@@ -309,7 +348,7 @@ if __name__ == "__main__":
                 config = yaml.safe_load(file)
             return config
         
-        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.2"
+        os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"0.95"
         sweep_config = load_config()
         print(sweep_config)
         
