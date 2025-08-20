@@ -149,6 +149,12 @@ def main(args=None):
     base_id = generate_experiment_id(args, HIDDEN_DIM, LATENT_DIM, SEED)
     id_sim, CKPT_DIR, WU_DIR, RESULT_DIR, PLT_DIR = create_experiment_directories(base_id)
 
+    bu_dir = os.path.join(CKPT_DIR, "Backup")    
+    # Create directories
+    os.makedirs(bu_dir, exist_ok=True)
+    print(bu_dir)
+
+
     # Write configuration to YAML file
     write_config_yaml(args, CKPT_DIR)
 
@@ -204,6 +210,7 @@ def main(args=None):
                                                         log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") # TODO: create a val loader for imdb
         
         if val_acc > best_val_acc + improvement: 
+            patience = 0
             best_val_acc = val_acc
             best_val_acc_loss = val_loss
             
@@ -213,14 +220,16 @@ def main(args=None):
                 if 0.8 > best_val_acc > 0.70: improvement = 0.005 # 0.5%
                 elif best_val_acc >= 0.80: improvement = 0.001 # 0.1%
             elif args.dataset == 'listops':
-                if best_val_acc > 0.55: improvement = 0.003 # 0.3%
+                if best_val_acc > 0.55: improvement = 0.001 # 0.3%
+                elif best_val_acc > 0.50: improvement = 0.003 # 0.2%
             elif args.dataset == 'path':
                 if best_val_acc > 0.88: improvement = 0.002 # 0.2%
             elif args.dataset == 'pathx':
                 if best_val_acc > 0.93: improvement = 0.002 # 0.2%
                 elif best_val_acc > 0.88: improvement = 0.005 # 0.5%
             elif args.dataset == 'imdb':
-                if best_val_acc > 0.85: improvement = 0.003 # 0.3%
+                if best_val_acc > 0.80: improvement = 0.003 # 0.3%
+                elif best_val_acc > 0.83: improvement = 0.001 # 0.1%
 
 
             if args.dataset != 'imdb':
@@ -230,14 +239,22 @@ def main(args=None):
             else:
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
             
+            print(f"Saving the model at epoch {epoch}, in directory {CKPT_DIR}")
             checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
 
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
             patience += 1
+            if args.dataset == 'listops' and epoch < 20:
+                patience = 0
             if patience >= lim_patience and best_val_acc < 0.5:
                 print(f"Early stopping at epoch {epoch} due to low validation accuracy ({best_val_acc:.2f}) and patience limit reached ({patience}/{lim_patience})")
                 break
+            if epoch > 10 and patience >= 3 and val_acc < 0.55 and best_val_acc > 0.6:
+                print(f"Early stopping at epoch {epoch} due to low validation accuracy ({val_acc:.2f}, best: {best_val_acc:.2f}) and patience limit reached ({patience}/{lim_patience})")
+                break
+            #checkpoints.save_checkpoint(ckpt_dir=bu_dir, target=state, step=state.step, overwrite=False, async_manager=async_manager)
+
         
         # Prepare main logging dictionary
         main_metrics = {
@@ -275,7 +292,7 @@ def main(args=None):
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
         
         if args.dataset == 'imdb' and val_loss > 2*best_val_acc_loss:
-            if ovf_count < 5:
+            if ovf_count > 5:
                 print('CANCELLING: OVERFITTING')
                 break
             ovf_count += 1
@@ -284,7 +301,7 @@ def main(args=None):
             ovf_count = 0
 
         if args.dataset == 'imdb' and best_val_acc < 0.7 and epoch > 15:
-            if bad_count < 5:
+            if bad_count > 5:
                 print('CANCELLING: LOW ACCURACY ON IMDB')
                 break
             bad_count += 1

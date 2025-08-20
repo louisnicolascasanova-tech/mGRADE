@@ -530,6 +530,17 @@ class HeinsenMinGeneralGRULayer(nn.Module):
             x_safe = jnp.where(x > 10, 0, x)
             return jnp.where(x > 10, x, softplus(x_safe))
         def log_g(x):
+            '''
+            if x == -0.5, doing log(x+0.5) will result in -inf, so we need to add a small constant to avoid this
+            It might seem unnecessary as we only use the log for x > 0
+            This is actually necessary and due to JAX internal implementation of auto-diff combined with jnp.where
+            In the backward of jnp.where(x >= 0, jnp.log(x+0.5), -safe_softplus(-x)) 
+            it will compute: 0 * d log(x+0.5) / dx + 1 * d (-safe_softplus(-x)) / dx
+            But d log(x+0.5) / dx is undefined for x == -0.5.
+            So we need to add a small constant to avoid this.
+            TLDR: when using jnp.where, the backward pass will STILL COMPUTE the non-selected branch's gradient (then multiply it by 0) 
+                  so it need to be defined for all branches.
+            '''
             x_safe = jnp.where(x == -0.5, x+1e-5, x)
             return jnp.where(x >= 0, jnp.log(x_safe+0.5), -safe_softplus(-x))        
 
@@ -664,7 +675,6 @@ class RNN_General_Backbone(nn.Module):
     @nn.compact
     def __call__(self, x):
 
-        x = x #+ 0.8
         # ========== ENCODER ==========
         if self.encoder:
             # make a Dense layer without bias

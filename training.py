@@ -15,11 +15,16 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')  # Suppress sklearn warnings for cleaner output
 
+
+def clip_gradients_elementwise(grads, min_val=-1.0, max_val=1.0):
+    return jax.tree_map(lambda g: jnp.clip(g, min_val, max_val), grads)
+
 @jax.jit
 def update_model(state, grads, kernel_size, grad_clip_norm=1.0):
     # Apply gradient clipping
     grad_norm = optax.global_norm(grads)
-    clipped_grads = optax.clip_by_global_norm(grad_clip_norm).update(grads, None)[0]
+    # clipped_grads = optax.clip_by_global_norm(grad_clip_norm).update(grads, None)[0]
+    clipped_grads = clip_gradients_elementwise(grads, -grad_clip_norm, grad_clip_norm)
     grad_norm_post_clip = optax.global_norm(clipped_grads)
     
     state = state.apply_gradients(grads=clipped_grads)
@@ -63,7 +68,7 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     (loss, aux_dict), grads = grad_fn(state.params)
     
     # Compute prediction probabilities and confidence metrics
-    logits = aux_dict['logits']
+    logits = aux_dict['logits'] # shape: (batch_size, out_dim)
     probs = jax.nn.softmax(logits)
     predictions = jnp.argmax(logits, -1)
     accuracy = jnp.mean(predictions == y)
@@ -71,15 +76,17 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     # Prediction confidence (max softmax probability)
     max_probs = jnp.max(probs, axis=-1)
     mean_confidence = jnp.mean(max_probs)
+    confidence_std = jnp.std(max_probs)
     
     # Add model behavior metrics to aux_dict
     aux_dict.update({
         'probs': probs,
         'predictions': predictions,
         'mean_confidence': mean_confidence,
+        'confidence_std': confidence_std,
         'max_probs': max_probs
     })
-    aux_dict.pop('logits')
+    # aux_dict.pop('logits')
     return grads, loss, accuracy, aux_dict
 
 def map_nested_fn(fn):
@@ -309,8 +316,14 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         if log_model_behavior:
             log_dict.update({
                 "train/mean_confidence": aux_dict['mean_confidence'],
-                "train/confidence_std": jnp.std(aux_dict['max_probs']),
+                "train/confidence_std": aux_dict['confidence_std'],
             })
+            for i in range(aux_dict['net_dyn'][-1][-1].shape[0]):
+                for i in range(aux_dict[f'logits'].shape[1]):
+                    log_dict[f"train/logits_{i}_mean"] = aux_dict[f'logits'][:, i].mean()
+                    log_dict[f"train/logits_{i}_std"] = aux_dict[f'logits'][:, i].std()
+                    log_dict[f"train/logits_{i}_max"] = aux_dict[f'logits'][:, i].max()
+                    log_dict[f"train/logits_{i}_min"] = aux_dict[f'logits'][:, i].min()
             # Add class distribution metrics
             for i, class_idx in enumerate(np.unique(all_targets)):
                 log_dict.update({
@@ -629,9 +642,10 @@ def create_learning_rate_map(args, steps_per_epoch):
         param_rules.append(('DCLSLayer', 'std', 'none'))
     
     # Layer-specific bias optimization (only for layers that have bias)
-    mlp_bias_optim = getattr(args, 'mlp_bias_optim', 'adamw_small') 
-    gru_bias_optim = getattr(args, 'gru_bias_optim', args.bias_optim)
-    postnorm_bias_optim = getattr(args, 'postnorm_bias_optim', 'adamw_small')
+    default_bias_optim = getattr(args, 'bias_optim', 'adam') 
+    mlp_bias_optim = getattr(args, 'mlp_bias_optim', default_bias_optim) 
+    gru_bias_optim = getattr(args, 'gru_bias_optim', default_bias_optim)
+    postnorm_bias_optim = getattr(args, 'postnorm_bias_optim', default_bias_optim)
     
     param_rules.extend([
         ('MLP', 'bias', mlp_bias_optim),
@@ -655,8 +669,9 @@ def create_learning_rate_map(args, steps_per_epoch):
         param_rules.append(('DCLSLayer', 'positions', 'none'))
     
     # Layer-specific scale optimization (only for layers that have scale)
-    mlp_scale_optim = getattr(args, 'mlp_scale_optim', 'adamw_small')
-    postnorm_scale_optim = getattr(args, 'postnorm_scale_optim', 'adamw_small')
+    default_scale_optim = getattr(args, 'scale_optim', 'adam')
+    mlp_scale_optim = getattr(args, 'mlp_scale_optim', default_scale_optim)
+    postnorm_scale_optim = getattr(args, 'postnorm_scale_optim', default_scale_optim)
     
     param_rules.extend([
         ('MLP', 'scale', mlp_scale_optim),           # MLP LayerNorm scale
