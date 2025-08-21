@@ -752,7 +752,8 @@ class RNN_General_Backbone(nn.Module):
                     skip_recurrent_dense, # if the DCLS layer is dendritic, we need to skip the recurrent dense layer
                     dense_z_weight_init_scale=self.dense_z_weight_init_scale,
                     dense_z_bias_init=self.dense_z_bias_init,
-                    dense_h_weight_init_scale=self.dense_h_weight_init_scale
+                    dense_h_weight_init_scale=self.dense_h_weight_init_scale,
+                    dense_h_bias_init=self.dense_h_bias_init,
                 )(x)
                 state_hist.append(out_dict)
                 x = out_dict[3]

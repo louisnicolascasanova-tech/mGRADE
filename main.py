@@ -115,7 +115,7 @@ def main(args=None):
         # COMPRESSION
         latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
         postnorm=args.postnorm,
-        decoder_bias=args.decoder_bias
+        decoder_bias=getattr(args, 'decoder_bias', True),
     )
                         
     # model_mingru = BatchRNN(HIDDEN_DIM, 10, args.n_layers, recurrent_layer=minGRULayer)
@@ -123,6 +123,19 @@ def main(args=None):
     lr_map, lr_fn = create_learning_rate_map(args, steps_per_epoch)
     sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
     state, n_params, _ = create_train_state(**sim_args)
+    
+    # Load checkpoint if resume_from is provided
+    start_epoch = 0
+    if hasattr(args, 'resume_from') and args.resume_from is not None:
+        print(f"Loading checkpoint from {args.resume_from}")
+        restored_state = checkpoints.restore_checkpoint(ckpt_dir=args.resume_from, target=state)
+        if restored_state is not None:
+            state = restored_state
+            start_epoch = int(state.step // len(trainloader))
+            print(f"Resumed training from epoch {start_epoch}, step {state.step}")
+        else:
+            print("Warning: Could not load checkpoint, starting from scratch")
+    
     wandb.log({"n_params": n_params})
     # print(state.opt_state)
     del lr_map, sim_args
@@ -183,7 +196,7 @@ def main(args=None):
     bad_count = 0
     patience = 0
     lim_patience = 10
-    for epoch in range(args.n_epochs):
+    for epoch in range(start_epoch, args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
@@ -338,6 +351,7 @@ if __name__ == "__main__":
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
     parser.add_argument("--sweep", action="store_true", help="Run in sweep mode using wandb sweep configuration")
     parser.add_argument("--sim_name", type=str, default="gen", help="Simulation name for wandb")
+    parser.add_argument("--resume_from", type=str, default=None, help="Path to checkpoint directory to resume training from")
     args_cli = parser.parse_args()
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args_cli.gpu)
@@ -372,14 +386,26 @@ if __name__ == "__main__":
         sweep_id = wandb.sweep(sweep_config, project="Den-minGRU_sweeps") 
         wandb.agent(sweep_id, main)
     else:
-        # Regular mode: load config from yaml and run single experiment
+        # Regular mode: load config from yaml or checkpoint and run single experiment
         def parse_args():
-            conv_str = f'{args_cli.conv_mode}'
-            if args_cli.conv_mode == 'dcls':
-                conv_str += f'_c{args_cli.dcls_config}'
-            with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml", "r") as file:
-                config = yaml.safe_load(file)
-            return argparse.Namespace(**config)
+            if args_cli.resume_from is not None:
+                # Load config from checkpoint directory
+                config_path = os.path.join(args_cli.resume_from, 'config.yaml')
+                if os.path.exists(config_path):
+                    print(f"Loading config from checkpoint: {config_path}")
+                    with open(config_path, "r") as file:
+                        config = yaml.safe_load(file)
+                    return argparse.Namespace(**config)
+                else:
+                    raise FileNotFoundError(f"No config.yaml found in checkpoint directory: {args_cli.resume_from}")
+            else:
+                # Load config from yaml_folder
+                conv_str = f'{args_cli.conv_mode}'
+                if args_cli.conv_mode == 'dcls':
+                    conv_str += f'_c{args_cli.dcls_config}'
+                with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml", "r") as file:
+                    config = yaml.safe_load(file)
+                return argparse.Namespace(**config)
 
         args = parse_args()
         print(args)
@@ -389,6 +415,7 @@ if __name__ == "__main__":
         args.gpu = args_cli.gpu
         if args_cli.seed is not None:
             args.seed = args_cli.seed
+        args.resume_from = args_cli.resume_from
         
         # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"
@@ -450,3 +477,6 @@ if __name__ == "__main__":
     #  32| 33  | 63  | 125 | 249 | 497  | 993  | 1985 | 3969  | 7937  | 15873 | 31745 |
     #  64| 65  | 127 | 253 | 505 | 1009 | 2017 | 4033 | 8065  | 16129 | 32257 | 64513 |
     # 128| 129 | 255 | 509 |1017 | 2033 | 4065 | 8129 | 16257 | 32513 | 65025 |130049 |
+
+
+# python main.py --resume_from checkpoints/general/listops_H128L6B64_do0_lr0.004wd0.1we15.0_skipLFET_DCLS64axgaus0.7hetPF8_recrelu_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0 --dataset listops --gpu 0

@@ -318,12 +318,12 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                 "train/mean_confidence": aux_dict['mean_confidence'],
                 "train/confidence_std": aux_dict['confidence_std'],
             })
-            for i in range(aux_dict['net_dyn'][-1][-1].shape[0]):
-                for i in range(aux_dict[f'logits'].shape[1]):
-                    log_dict[f"train/logits_{i}_mean"] = aux_dict[f'logits'][:, i].mean()
-                    log_dict[f"train/logits_{i}_std"] = aux_dict[f'logits'][:, i].std()
-                    log_dict[f"train/logits_{i}_max"] = aux_dict[f'logits'][:, i].max()
-                    log_dict[f"train/logits_{i}_min"] = aux_dict[f'logits'][:, i].min()
+            # for i in range(aux_dict['net_dyn'][-1][-1].shape[0]):
+            #     for i in range(aux_dict[f'logits'].shape[1]):
+            #         log_dict[f"train/logits_{i}_mean"] = aux_dict[f'logits'][:, i].mean()
+            #         log_dict[f"train/logits_{i}_std"] = aux_dict[f'logits'][:, i].std()
+            #         log_dict[f"train/logits_{i}_max"] = aux_dict[f'logits'][:, i].max()
+            #         log_dict[f"train/logits_{i}_min"] = aux_dict[f'logits'][:, i].min()
             # Add class distribution metrics
             for i, class_idx in enumerate(np.unique(all_targets)):
                 log_dict.update({
