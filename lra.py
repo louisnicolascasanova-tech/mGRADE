@@ -655,8 +655,7 @@ class AAN(SequenceDataset):
         # Account for <bos> and <eos> tokens
         l_max = self.l_max - int(self.append_bos) - int(self.append_eos)
 
-        def tokenize(example):
-            {
+        tokenize = lambda example: {
                 "tokens1": tokenizer(example["text1"])[:l_max],
                 "tokens2": tokenizer(example["text2"])[:l_max],
             }
@@ -678,15 +677,13 @@ class AAN(SequenceDataset):
         )
         vocab.set_default_index(vocab["<unk>"])
 
-        def encode(text):
-            vocab(
+        encode = lambda text: vocab(
                 (["<bos>"] if self.append_bos else [])
                 + text
                 + (["<eos>"] if self.append_eos else [])
             )
 
-        def numericalize(example):
-            {
+        numericalize = lambda example: {
                 "input_ids1": encode(example["tokens1"]),
                 "input_ids2": encode(example["tokens2"]),
             }
