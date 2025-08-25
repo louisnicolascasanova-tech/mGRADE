@@ -11,11 +11,12 @@ jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
 from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, \
         create_lra_imdb_classification_dataset, create_lra_listops_classification_dataset, \
         create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset, \
+        create_lra_aan_classification_dataset, \
         prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories, \
         compute_class_weights 
 from plots import plot_dynamics
 
-from model import BatchRNN_General
+from model import BatchRNN_General, RNN_General_Retrieval_Backbone
 from training import create_train_state, run_epoch, validate, create_learning_rate_map
 from functools import partial
 
@@ -41,22 +42,26 @@ def main(args=None):
         'imdb': create_lra_imdb_classification_dataset,
         'listops': create_lra_listops_classification_dataset,
         'path': create_lra_path32_classification_dataset,
-        'pathx': create_lra_pathx_classification_dataset
+        'pathx': create_lra_pathx_classification_dataset,
+        'aan': create_lra_aan_classification_dataset,
     }
+    # recovering inputs for the tabulate function
     if args.dataset in ['cifar', 'mnist']:
         trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
-        batch_x, batch_y = next(iter(testloader)) # used for the tabulate function
-    elif args.dataset in ['imdb', 'listops']:
+        batch_x, batch_y = next(iter(testloader))
+    elif args.dataset in ['imdb', 'listops', 'aan']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
-        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
+        batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM) # batch_x = (inputs, lengths)
     elif args.dataset in ['path', 'pathx']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
-        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM) # used for the tabulate function
-        
+        batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM) # batch_x = inputs
 
-    print(batch_x.shape, batch_y.shape)
+    if args.dataset in ['imdb', 'listops', 'aan']:
+        print(batch_x[0].shape, batch_x[1].shape) 
+    else:
+        print(batch_x.shape, batch_y.shape)
     print(batch_y.dtype)
 
     
@@ -84,39 +89,74 @@ def main(args=None):
 
     
     
-
-    model_cls = partial(
-        BatchRNN_General, 
-        n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
-        encoder=getattr(args, 'encoder', True), 
-        encoder_scale=getattr(args, 'encoder_scale', 1.0),
-        encoder_bias=getattr(args, 'encoder_bias', True),
-        layer_skip=args.layer_skip, element_skip=args.element_skip,
-        # CONVOLUTION
-        enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
-        wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
-        dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
-        dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
-        dcls_heterogeneous_weights=args.heterogeneous_weights, 
-        dcls_heterogeneous_positions=args.heterogeneous_positions,
-        dcls_heterogeneous_std=args.heterogeneous_std,
-        weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
-        conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
-        # RECURRENT
-        enable_rec=args.enable_rec, rec_act=args.rec_act, 
-        rec_ln=getattr(args, 'rec_ln', False),
-        dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
-        dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
-        dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
-        dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
-        # CHANNEL MIXING
-        enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
-        cm_ln=getattr(args, 'cm_ln', False),
-        # COMPRESSION
-        latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
-        postnorm=args.postnorm,
-        decoder_bias=getattr(args, 'decoder_bias', True),
-    )
+    if args.dataset == 'aan':
+        model_cls = partial(
+            RNN_General_Retrieval_Backbone, 
+            n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
+            encoder=getattr(args, 'encoder', True), 
+            encoder_scale=getattr(args, 'encoder_scale', 1.0),
+            encoder_bias=getattr(args, 'encoder_bias', True),
+            layer_skip=args.layer_skip, element_skip=args.element_skip,
+            # CONVOLUTION
+            enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
+            wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary, dilation_offset=args.dilation_offset,
+            constant_dilation=args.constant_dilation,
+            dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
+            dcls_heterogeneous_weights=args.heterogeneous_weights, 
+            dcls_heterogeneous_positions=args.heterogeneous_positions,
+            dcls_heterogeneous_std=args.heterogeneous_std,
+            weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
+            conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
+            # RECURRENT
+            enable_rec=args.enable_rec, rec_act=args.rec_act, 
+            rec_ln=getattr(args, 'rec_ln', False),
+            dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
+            dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
+            dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
+            dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
+            # CHANNEL MIXING
+            enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
+            cm_ln=getattr(args, 'cm_ln', False),
+            # COMPRESSION
+            latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
+            postnorm=args.postnorm,
+            decoder_bias=getattr(args, 'decoder_bias', True),
+        )
+        
+    else: 
+        model_cls = partial(
+            BatchRNN_General,
+            padded=True if args.dataset in ['imdb', 'listops'] else False, 
+            n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
+            encoder=getattr(args, 'encoder', True), 
+            encoder_scale=getattr(args, 'encoder_scale', 1.0),
+            encoder_bias=getattr(args, 'encoder_bias', True),
+            layer_skip=args.layer_skip, element_skip=args.element_skip,
+            # CONVOLUTION
+            enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
+            wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
+            dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
+            dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
+            dcls_heterogeneous_weights=args.heterogeneous_weights, 
+            dcls_heterogeneous_positions=args.heterogeneous_positions,
+            dcls_heterogeneous_std=args.heterogeneous_std,
+            weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
+            conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
+            # RECURRENT
+            enable_rec=args.enable_rec, rec_act=args.rec_act, 
+            rec_ln=getattr(args, 'rec_ln', False),
+            dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
+            dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
+            dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
+            dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
+            # CHANNEL MIXING
+            enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
+            cm_ln=getattr(args, 'cm_ln', False),
+            # COMPRESSION
+            latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
+            postnorm=args.postnorm,
+            decoder_bias=getattr(args, 'decoder_bias', True),
+        )
                         
     # model_mingru = BatchRNN(HIDDEN_DIM, 10, args.n_layers, recurrent_layer=minGRULayer)
     steps_per_epoch = len(trainloader) 
@@ -140,11 +180,6 @@ def main(args=None):
     # print(state.opt_state)
     del lr_map, sim_args
 
-    if args.conv == 'dcls':
-        print(state.params['DCLSLayer_0']['positions'])
-        print(state.params['DCLSLayer_0']['weights'])
-        print(state.params['DCLSLayer_0']['std'])
-
 
     key, key1, key2 = jax.random.split(key, 3)
     model_tab = model_cls(training=False)
@@ -154,9 +189,14 @@ def main(args=None):
 
     print(args)
     if args.conv == 'dcls':
-        print(state.params['DCLSLayer_0']['positions'])
-        print(state.params['DCLSLayer_0']['weights'])
-        print(state.params['DCLSLayer_0']['std'])
+        if args.dataset != 'aan':
+            print(state.params['DCLSLayer_0']['positions'])
+            print(state.params['DCLSLayer_0']['weights'])
+            print(state.params['DCLSLayer_0']['std'])
+        else:
+            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
+            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
+            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
 
     # Generate experiment ID and create directories
     base_id = generate_experiment_id(args, HIDDEN_DIM, LATENT_DIM, SEED)
@@ -209,7 +249,7 @@ def main(args=None):
                         in_dim=IN_DIM, seq_len=SEQ_LENGTH,
                         grad_clip_norm=args.grad_clip_norm,
                         log_model_behavior=args.log_model_behavior, epoch_num=epoch,
-                        class_weights=class_weights)
+                        class_weights=class_weights, dataset=args.dataset)
         aux_dict_training.append(aux_dict_epoch)
         
         if break_flag:
@@ -260,7 +300,7 @@ def main(args=None):
             patience += 1
             if args.dataset == 'listops' and epoch < 20:
                 patience = 0
-            if patience >= lim_patience and best_val_acc < 0.5:
+            if patience >= lim_patience and best_val_acc < 0.45:
                 print(f"Early stopping at epoch {epoch} due to low validation accuracy ({best_val_acc:.2f}) and patience limit reached ({patience}/{lim_patience})")
                 break
             if epoch > 10 and patience >= 3 and val_acc < 0.55 and best_val_acc > 0.6:
@@ -297,9 +337,14 @@ def main(args=None):
         test_losses.append(test_loss)
         test_accuracies.append(test_acc)
         if epoch == 0 and args.conv == 'dcls':
-            print(state.params['DCLSLayer_0']['positions'])
-            print(state.params['DCLSLayer_0']['weights'])
-            print(state.params['DCLSLayer_0']['std'])
+            if args.dataset != 'aan':
+                print(state.params['DCLSLayer_0']['positions'])
+                print(state.params['DCLSLayer_0']['weights'])
+                print(state.params['DCLSLayer_0']['std'])
+            else:
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
         if epoch == args.n_epochs*args.warmup_frac: 
             print("Saving the warmed up model")
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
@@ -343,7 +388,7 @@ def main(args=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
@@ -480,3 +525,4 @@ if __name__ == "__main__":
 
 
 # python main.py --resume_from checkpoints/general/listops_H128L6B64_do0_lr0.004wd0.1we15.0_skipLFET_DCLS64axgaus0.7hetPF8_recrelu_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0 --dataset listops --gpu 0
+# python main.py --dataset aan --gpu 0 --conv_mode dcls --dcls_config 6 --file_nb 0

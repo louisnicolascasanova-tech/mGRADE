@@ -377,14 +377,6 @@ def create_lra_aan_classification_dataset(
     )
 
 
-
-
-@jax.vmap
-def create_mask(x, length):
-    L = x.shape[0]
-    mask = (jnp.arange(L) >= length[0]) * (jnp.arange(L) < length[1])
-    return mask
-
 def prep_batch(batch, seq_len, in_dim):
     """Take a batch and convert it to a standard x/y format"""
     if len(batch) == 2:
@@ -410,15 +402,14 @@ def prep_batch(batch, seq_len, in_dim):
     if (inputs.ndim < 3) and (inputs.shape[-1] != in_dim):
         inputs = one_hot(inputs, in_dim)
 
+    # If there are lengths, bundle them up.
     if lengths is not None:
-        lengths = jnp.array(lengths)
-        if len(lengths.shape) == 1:  # If lengths only give last
-            lengths = jnp.stack([jnp.zeros((inputs.shape[0],)), lengths], axis=1)
-        masks = create_mask(inputs, lengths)
+        lengths = np.asarray(lengths.numpy())
+        full_inputs = (inputs.astype(float), lengths.astype(float))
     else:
-        masks = jnp.ones((inputs.shape[0], inputs.shape[1]))
+        full_inputs = inputs.astype(float)
 
-    return inputs, targets, masks
+    return full_inputs, targets
 
 
 def setup_random_seeds(seed=None):

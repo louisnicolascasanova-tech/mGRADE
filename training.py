@@ -48,8 +48,7 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     """Computes gradients, loss and accuracy for a single batch."""
     # do_key = jax.random.fold_in(do_key, state.step)
     def loss_fn(params):
-        net_dyn, out_hist = model.apply({'params': params}, x, rngs={'dropout': do_key})
-        logits = out_hist.mean(axis=1)
+        net_dyn, logits = model.apply({'params': params}, x, rngs={'dropout': do_key})
         one_hot = jax.nn.one_hot(y, model.out_dim)
         batch_loss = optax.softmax_cross_entropy(logits=logits, labels=one_hot)
         if class_weights is not None:
@@ -89,6 +88,39 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     # aux_dict.pop('logits')
     return grads, loss, accuracy, aux_dict
 
+def apply_retrieval_model(state, model, x, y, reg_factor, do_key):
+    def loss_fn(params):
+        net_dyn, logits = model.apply({'params': params}, x, rngs={'dropout': do_key})
+        one_hot = jax.nn.one_hot(y, model.out_dim)
+        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
+        return loss, {'logits': logits, 'net_dyn': net_dyn}
+    grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
+    (loss, aux_dict), grads = grad_fn(state.params)
+
+    # Compute prediction probabilities and confidence metrics
+    logits = aux_dict['logits'] # shape: (batch_size, out_dim)
+    probs = jax.nn.softmax(logits)
+    predictions = jnp.argmax(logits, -1)
+    accuracy = jnp.mean(predictions == y)
+
+    # Prediction confidence (max softmax probability)
+    max_probs = jnp.max(probs, axis=-1)
+    mean_confidence = jnp.mean(max_probs)
+    confidence_std = jnp.std(max_probs)
+    
+    # Add model behavior metrics to aux_dict
+    aux_dict.update({
+        'probs': probs,
+        'predictions': predictions,
+        'mean_confidence': mean_confidence,
+        'confidence_std': confidence_std,
+        'max_probs': max_probs
+    })
+    # aux_dict.pop('logits')
+    return grads, loss, accuracy, aux_dict
+
+
+
 def map_nested_fn(fn):
     """Recursively apply `fn to the key-value pairs of a nested dict / pytree."""
 
@@ -121,7 +153,8 @@ def plt_confusion_matrix(cm, class_labels):
     return Image.open(buf)
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
-              wandb_gradients=False, wandb_states=False, wandb_matrices=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, class_weights=None):
+              wandb_gradients=False, wandb_states=False, wandb_matrices=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, 
+              class_weights=None, retrieval=False, dataset=None):
     """Train for a single epoch."""
     model = model_cls(training=True)
     epoch_loss = []
@@ -140,9 +173,12 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         if len(batch) == 2:  # If the batch is already preprocessed
             batch_x, batch_y = batch
         elif len(batch) == 3:  # If the batch contains mask
-            batch_x, batch_y, mask = prep_batch(batch, seq_len, in_dim)
+            batch_x, batch_y = prep_batch(batch, seq_len, in_dim)
         # start = time()
-        grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key, class_weights=class_weights)
+        if not retrieval: 
+            grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key, class_weights=class_weights)
+        else:
+            raise NotImplementedError("Retrieval mode not implemented in this version.")
         # stop = time()
         # print("forward pass time:", stop-start)
         for k in keys_to_track:
@@ -225,12 +261,23 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
             for param_name, param_value in flat_params.items():
                 # Special handling for DCLS layers - reconstruct and plot the actual kernels
                 if 'DCLSLayer' in param_name and param_name.endswith('weights'):
-                    layer_name = param_name.split('/')[0]  # Extract DCLSLayer_X
                     
-                    # Get DCLS parameters
-                    weights = state.params[layer_name]['weights']
-                    positions = state.params[layer_name]['positions']
-                    std = state.params[layer_name]['std']
+                      # Extract DCLSLayer_X
+                    
+                    # Get DCLS parameters - handle different parameter structures
+                    if dataset == 'aan':
+                        subnet_name = param_name.split('/')[0]
+                        layer_name = param_name.split('/')[1]
+                        # For AAN dataset using RNN_General_Retrieval_Backbone
+                        weights = state.params[subnet_name][layer_name]['weights']
+                        positions = state.params[subnet_name][layer_name]['positions']
+                        std = state.params[subnet_name][layer_name]['std']
+                    else:
+                        layer_name = param_name.split('/')[0]
+                        # For other datasets using BatchRNN_General
+                        weights = state.params[layer_name]['weights']
+                        positions = state.params[layer_name]['positions']
+                        std = state.params[layer_name]['std']
                     
                     # Determine kernel dimensions and size (from model architecture)
                     kernel_size = model.kernel_size
@@ -469,8 +516,7 @@ def eval_model(state, model, images, labels, out_dim):
     """Computes loss, accuracy, and predictions for a single batch."""
 
     def loss_fn(params):
-        _, out_hist = model.apply({'params': params}, images)
-        logits = out_hist.mean(axis=1)
+        net_dyn, logits = model.apply({'params': params}, images)
         one_hot = jax.nn.one_hot(labels, out_dim)
         loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
         return loss, logits
@@ -491,8 +537,7 @@ def inf_model(state, model, images, labels, out_dim):
     """Computes loss, accuracy, and predictions for a single batch."""
 
     def loss_fn(params):
-        ndh, out_hist = model.apply({'params': params}, images)
-        logits = out_hist.mean(axis=1)
+        ndh, logits = model.apply({'params': params}, images)
         one_hot = jax.nn.one_hot(labels, out_dim)
         loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
         return loss, ndh, logits
@@ -514,12 +559,13 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classificat
     model = model(training=False) # needed when using dropout
     losses, accuracies = [], []
     all_predictions, all_targets, all_confidences = [], [], []
+    progress_bar = tqdm(testloader, desc="Validation", leave=True)
     
-    for batch_idx, batch in enumerate(testloader):
+    for batch in progress_bar:
         if len(batch) == 2:  # If the batch is already preprocessed
             inputs, labels = batch
         elif len(batch) == 3:  # If the batch contains mask
-            inputs, labels, _ = prep_batch(batch, seq_len, in_dim)
+            inputs, labels = prep_batch(batch, seq_len, in_dim)
         
         loss, acc, predictions, max_probs, mean_confidence = eval_model(
             state, model, inputs, labels, out_dim
@@ -717,6 +763,8 @@ def init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size):
     init_x = jnp.ones((batch_size, seq_len, in_dim)) if dataset_version == "sequential" else jnp.ones((batch_size, jnp.sqrt(seq_len), jnp.sqrt(seq_len)))
 
     model = model_cls(training=True)
+    if model.padded: 
+        init_x = (init_x, jnp.ones((batch_size, 1)))  # add dummy mask for initialization if model expects padding mask
     key, pkey, do_key = jax.random.split(key, 3)
     params = model.init({'params': pkey, 'dropout': do_key}, init_x)['params']
     return model, params

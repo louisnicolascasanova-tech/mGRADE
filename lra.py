@@ -12,6 +12,7 @@ import torchvision
 from einops.layers.torch import Rearrange, Reduce
 from PIL import Image  # Only used for Pathfinder
 from datasets import DatasetDict, Value, load_dataset
+from tqdm import tqdm
 
 from base import default_data_path, SequenceDataset, ImageResolutionSequenceDataset
 
@@ -273,7 +274,7 @@ class ListOps(SequenceDataset):
         def collate_batch(batch):
             xs, ys = zip(*[(data["input_ids"], data["Target"]) for data in batch])
             # Added zeros to the length for start of mask
-            lengths = torch.tensor([[0, len(x)] for x in xs])
+            lengths = torch.tensor([len(x) for x in xs])
             xs = nn.utils.rnn.pad_sequence(xs, padding_value=self.vocab["<pad>"], batch_first=True)
             ys = torch.tensor(ys)
             return xs, ys, {"lengths": lengths}
@@ -667,8 +668,19 @@ class AAN(SequenceDataset):
             load_from_cache_file=False,
             num_proc=max(self.n_workers, 1),
         )
+
+        tokens1_list = dataset["train"]["tokens1"]
+        tokens2_list = dataset["train"]["tokens2"]
+        all_toks = []
+        for toks in tqdm(tokens1_list, desc="Compiling vocab from tokens1"):
+            all_toks.extend(toks)
+        for toks in tqdm(tokens2_list, desc="Compiling vocab from tokens2"):
+            all_toks.extend(toks)
+        print(f"AAN total tokens in training set: {len(all_toks)}")
+
+        print("Building vocab...")
         vocab = torchtext.vocab.build_vocab_from_iterator(
-            dataset["train"]["tokens1"] + dataset["train"]["tokens2"],
+            all_toks,
             specials=(
                 ["<pad>", "<unk>"]
                 + (["<bos>"] if self.append_bos else [])
@@ -676,7 +688,9 @@ class AAN(SequenceDataset):
             ),
         )
         vocab.set_default_index(vocab["<unk>"])
+        print("Vocab built.")
 
+        print("Numericalizing...")
         encode = lambda text: vocab(
                 (["<bos>"] if self.append_bos else [])
                 + text
@@ -695,9 +709,13 @@ class AAN(SequenceDataset):
             load_from_cache_file=False,
             num_proc=max(self.n_workers, 1),
         )
+        print("Numericalization done.")
 
+
+        print("Saving to cache...")
         if cache_dir is not None:
             self._save_to_cache(dataset, tokenizer, vocab, cache_dir)
+        print("Cache saved.")
         return dataset, tokenizer, vocab
 
     def _save_to_cache(self, dataset, tokenizer, vocab, cache_dir):
