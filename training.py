@@ -233,12 +233,15 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                 z = jax.nn.sigmoid(z_preact)
                 
                 # Log histograms for h_new and z (gates)
-                flat_h_h_tilde_preact = jnp.ravel(h_tilde_preact)
+                flat_h_new = jnp.ravel(h_new)
+                flat_h_tilde_preact = jnp.ravel(h_tilde_preact)
                 flat_z = jnp.ravel(z)
                 flat_z_preact = jnp.ravel(z_preact)
                 
-                net_dyn_histograms[f"train_dynamics_histograms/h_tilde_preact_layer_{layer_idx}"] = wandb.Histogram(flat_h_h_tilde_preact)
+                net_dyn_histograms[f"train_dynamics_histograms/h_new_layer_{layer_idx}"] = wandb.Histogram(flat_h_new)
+                net_dyn_histograms[f"train_dynamics_histograms/h_tilde_preact_layer_{layer_idx}"] = wandb.Histogram(flat_h_tilde_preact)
                 net_dyn_histograms[f"train_dynamics_histograms/z_layer_{layer_idx}"] = wandb.Histogram(flat_z)
+                net_dyn_histograms[f"train_dynamics_histograms/z_preact_layer_{layer_idx}"] = wandb.Histogram(flat_z_preact)
                 
                 # Log statistics for z_preact and h_tilde_preact
                 net_dyn_histograms[f"train_dynamics_stats/z_mean_layer_{layer_idx}"] = float(jnp.mean(z))
@@ -246,6 +249,18 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                 net_dyn_histograms[f"train_dynamics_stats/z_std_layer_{layer_idx}"] = float(jnp.std(z))
                 net_dyn_histograms[f"train_dynamics_stats/z_max_layer_{layer_idx}"] = float(jnp.max(z))
                 net_dyn_histograms[f"train_dynamics_stats/z_min_layer_{layer_idx}"] = float(jnp.min(z))
+                
+                net_dyn_histograms[f"train_dynamics_stats/z_preact_mean_layer_{layer_idx}"] = float(jnp.mean(z_preact))
+                net_dyn_histograms[f"train_dynamics_stats/z_preact_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(z_preact)))
+                net_dyn_histograms[f"train_dynamics_stats/z_preact_std_layer_{layer_idx}"] = float(jnp.std(z_preact))
+                net_dyn_histograms[f"train_dynamics_stats/z_preact_max_layer_{layer_idx}"] = float(jnp.max(z_preact))
+                net_dyn_histograms[f"train_dynamics_stats/z_preact_min_layer_{layer_idx}"] = float(jnp.min(z_preact))
+                
+                net_dyn_histograms[f"train_dynamics_stats/h_new_mean_layer_{layer_idx}"] = float(jnp.mean(h_new))
+                net_dyn_histograms[f"train_dynamics_stats/h_new_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(h_new)))
+                net_dyn_histograms[f"train_dynamics_stats/h_new_std_layer_{layer_idx}"] = float(jnp.std(h_new))
+                net_dyn_histograms[f"train_dynamics_stats/h_new_max_layer_{layer_idx}"] = float(jnp.max(h_new))
+                net_dyn_histograms[f"train_dynamics_stats/h_new_min_layer_{layer_idx}"] = float(jnp.min(h_new))
                 
                 net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_mean_layer_{layer_idx}"] = float(jnp.mean(h_tilde_preact))
                 net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(h_tilde_preact)))
