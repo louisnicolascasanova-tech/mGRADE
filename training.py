@@ -15,6 +15,8 @@ import seaborn as sns
 import warnings
 warnings.filterwarnings('ignore')  # Suppress sklearn warnings for cleaner output
 
+from custom_logging import LoggingConfig, log_training_batch, log_classification_metrics
+
 
 def clip_gradients_elementwise(grads, min_val=-1.0, max_val=1.0):
     return jax.tree_map(lambda g: jnp.clip(g, min_val, max_val), grads)
@@ -48,7 +50,7 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     """Computes gradients, loss and accuracy for a single batch."""
     # do_key = jax.random.fold_in(do_key, state.step)
     def loss_fn(params):
-        net_dyn, logits = model.apply({'params': params}, x, rngs={'dropout': do_key})
+        net_dyn, logits, monitor = model.apply({'params': params}, x, rngs={'dropout': do_key})
         one_hot = jax.nn.one_hot(y, model.out_dim)
         batch_loss = optax.softmax_cross_entropy(logits=logits, labels=one_hot)
         if class_weights is not None:
@@ -61,7 +63,7 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
             # reg += jnp.where(jnp.abs(layers[1]) > 1, layers[1]**2, 0.0).sum() # z_preact
         # reg += jnp.where(jnp.abs(out_hist) > 1, out_hist**2, 0.0).sum()
         loss = jnp.mean(batch_loss) + reg_factor * reg
-        return loss, {'logits': logits, 'batch_loss': batch_loss, 'net_dyn': net_dyn, 'reg': reg}
+        return loss, {'logits': logits, 'batch_loss': batch_loss, 'net_dyn': net_dyn, 'reg': reg, 'monitor': monitor}
 
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, aux_dict), grads = grad_fn(state.params)
@@ -90,10 +92,10 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
 
 def apply_retrieval_model(state, model, x, y, reg_factor, do_key):
     def loss_fn(params):
-        net_dyn, logits = model.apply({'params': params}, x, rngs={'dropout': do_key})
+        net_dyn, logits, monitor = model.apply({'params': params}, x, rngs={'dropout': do_key})
         one_hot = jax.nn.one_hot(y, model.out_dim)
         loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
-        return loss, {'logits': logits, 'net_dyn': net_dyn}
+        return loss, {'logits': logits, 'net_dyn': net_dyn, 'monitor': monitor}
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, aux_dict), grads = grad_fn(state.params)
 
@@ -132,25 +134,6 @@ def map_nested_fn(fn):
 
     return map_fn
 
-def plt_confusion_matrix(cm, class_labels):
-    """Create a confusion matrix plot for wandb logging."""
-    plt.figure(figsize=(8, 6))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=class_labels, yticklabels=class_labels)
-    plt.title('Confusion Matrix')
-    plt.ylabel('True Label')
-    plt.xlabel('Predicted Label')
-    plt.tight_layout()
-    
-    # Convert to PIL image for wandb
-    import io
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-    buf.seek(0)
-    plt.close()
-    
-    from PIL import Image
-    return Image.open(buf)
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
               wandb_gradients=False, wandb_states=False, wandb_matrices=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, 
@@ -165,6 +148,15 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     break_flag = False
     key, do_key = jax.random.split(key)
     
+    # Initialize logging configuration
+    logging_config = LoggingConfig(
+        wandb_gradients=wandb_gradients,
+        wandb_states=wandb_states,
+        wandb_matrices=wandb_matrices,
+        log_model_behavior=log_model_behavior
+    )
+    logging_config.grad_clip_norm = grad_clip_norm
+    
     # Model behavior tracking
     all_predictions = []
     all_targets = []
@@ -175,10 +167,9 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         elif len(batch) == 3:  # If the batch contains mask
             batch_x, batch_y = prep_batch(batch, seq_len, in_dim)
         # start = time()
-        if not retrieval: 
-            grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key, class_weights=class_weights)
-        else:
-            raise NotImplementedError("Retrieval mode not implemented in this version.")
+
+        grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key, class_weights=class_weights)
+
         # stop = time()
         # print("forward pass time:", stop-start)
         for k in keys_to_track:
@@ -207,206 +198,13 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
             pred_dist = np.bincount(preds, minlength=len(unique_classes))
             target_dist = np.bincount(targets, minlength=len(unique_classes))
                     
-        # Compute gradient statistics per layer
-        flat_grads = flatten_dict(grads, sep='/')
-        grad_variances = {}
-        grad_norms = {}
-        grad_histograms = {}
-        for key, grad in flat_grads.items():
-            if grad is not None:
-                grad_variances[key] = jnp.var(grad)
-                grad_norms[key] = jnp.linalg.norm(grad)
-                if wandb_gradients:
-                    if jnp.isnan(grad).sum() > 0:
-                        print(f'NaN in gradients: {key}')
-                    flat_grad = jnp.ravel(grad)
-                    grad_histograms[f"train/gradients/{key}"] = wandb.Histogram(flat_grad)
+        # Use new logging system
+        log_dict = log_training_batch(
+            state=state, aux_dict=aux_dict, grads=grads, model=model, lr_fn=lr_fn,
+            grad_norm=0.0, post_clip_grad_norm=0.0,  # Will be updated after gradient clipping
+            batch_id=batch_id, config=logging_config, dataset=dataset
+        )
         
-        # Compute network dynamics statistics per layer
-        net_dyn_histograms = {}
-        if 'net_dyn' in aux_dict and wandb_states and batch_id % 500 == 0:
-            net_dyn = aux_dict['net_dyn']
-            for layer_idx, layer_dynamics in enumerate(net_dyn):
-                h_new, z_preact, h_tilde_preact, out = layer_dynamics
-                
-                # Compute gate values z = sigmoid(z_preact)
-                z = jax.nn.sigmoid(z_preact)
-                
-                # Log histograms for h_new and z (gates)
-                flat_h_new = jnp.ravel(h_new)
-                flat_h_tilde_preact = jnp.ravel(h_tilde_preact)
-                flat_z = jnp.ravel(z)
-                flat_z_preact = jnp.ravel(z_preact)
-                
-                net_dyn_histograms[f"train_dynamics_histograms/h_new_layer_{layer_idx}"] = wandb.Histogram(flat_h_new)
-                net_dyn_histograms[f"train_dynamics_histograms/h_tilde_preact_layer_{layer_idx}"] = wandb.Histogram(flat_h_tilde_preact)
-                net_dyn_histograms[f"train_dynamics_histograms/z_layer_{layer_idx}"] = wandb.Histogram(flat_z)
-                net_dyn_histograms[f"train_dynamics_histograms/z_preact_layer_{layer_idx}"] = wandb.Histogram(flat_z_preact)
-                
-                # Log statistics for z_preact and h_tilde_preact
-                net_dyn_histograms[f"train_dynamics_stats/z_mean_layer_{layer_idx}"] = float(jnp.mean(z))
-                net_dyn_histograms[f"train_dynamics_stats/z_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(z)))
-                net_dyn_histograms[f"train_dynamics_stats/z_std_layer_{layer_idx}"] = float(jnp.std(z))
-                net_dyn_histograms[f"train_dynamics_stats/z_max_layer_{layer_idx}"] = float(jnp.max(z))
-                net_dyn_histograms[f"train_dynamics_stats/z_min_layer_{layer_idx}"] = float(jnp.min(z))
-                
-                net_dyn_histograms[f"train_dynamics_stats/z_preact_mean_layer_{layer_idx}"] = float(jnp.mean(z_preact))
-                net_dyn_histograms[f"train_dynamics_stats/z_preact_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(z_preact)))
-                net_dyn_histograms[f"train_dynamics_stats/z_preact_std_layer_{layer_idx}"] = float(jnp.std(z_preact))
-                net_dyn_histograms[f"train_dynamics_stats/z_preact_max_layer_{layer_idx}"] = float(jnp.max(z_preact))
-                net_dyn_histograms[f"train_dynamics_stats/z_preact_min_layer_{layer_idx}"] = float(jnp.min(z_preact))
-                
-                net_dyn_histograms[f"train_dynamics_stats/h_new_mean_layer_{layer_idx}"] = float(jnp.mean(h_new))
-                net_dyn_histograms[f"train_dynamics_stats/h_new_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(h_new)))
-                net_dyn_histograms[f"train_dynamics_stats/h_new_std_layer_{layer_idx}"] = float(jnp.std(h_new))
-                net_dyn_histograms[f"train_dynamics_stats/h_new_max_layer_{layer_idx}"] = float(jnp.max(h_new))
-                net_dyn_histograms[f"train_dynamics_stats/h_new_min_layer_{layer_idx}"] = float(jnp.min(h_new))
-                
-                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_mean_layer_{layer_idx}"] = float(jnp.mean(h_tilde_preact))
-                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_mean_abs_layer_{layer_idx}"] = float(jnp.mean(jnp.abs(h_tilde_preact)))
-                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_std_layer_{layer_idx}"] = float(jnp.std(h_tilde_preact))
-                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_max_layer_{layer_idx}"] = float(jnp.max(h_tilde_preact))
-                net_dyn_histograms[f"train_dynamics_stats/h_tilde_preact_min_layer_{layer_idx}"] = float(jnp.min(h_tilde_preact))
-        
-        # Log parameter matrices as images every 100 steps
-        if wandb_states and batch_id % 500 == 0:
-            from model import construct_kernel_fast
-            
-            flat_params = flatten_dict(state.params, sep='/')
-            for param_name, param_value in flat_params.items():
-                # Special handling for DCLS layers - reconstruct and plot the actual kernels
-                if 'DCLSLayer' in param_name and param_name.endswith('weights'):
-                    
-                      # Extract DCLSLayer_X
-                    
-                    # Get DCLS parameters - handle different parameter structures
-                    if dataset == 'aan':
-                        subnet_name = param_name.split('/')[0]
-                        layer_name = param_name.split('/')[1]
-                        # For AAN dataset using RNN_General_Retrieval_Backbone
-                        weights = state.params[subnet_name][layer_name]['weights']
-                        positions = state.params[subnet_name][layer_name]['positions']
-                        std = state.params[subnet_name][layer_name]['std']
-                    else:
-                        layer_name = param_name.split('/')[0]
-                        # For other datasets using BatchRNN_General
-                        weights = state.params[layer_name]['weights']
-                        positions = state.params[layer_name]['positions']
-                        std = state.params[layer_name]['std']
-                    
-                    # Determine kernel dimensions and size (from model architecture)
-                    kernel_size = model.kernel_size
-                    n_dim = 3 if weights.ndim == 3 else 2  # synaptic vs axonal
-                    
-                    # Reconstruct the actual kernel
-                    kernel = None
-                    for j in range(weights.shape[0]):  # iterate over kernel elements
-                        k_j = construct_kernel_fast(weights[j], positions[j], std[j], kernel_size, n_dim)
-                        kernel = k_j if kernel is None else kernel + k_j
-                    
-                    # Flip kernel for visualization (same as in inf.py)
-                    kernel = np.flip(np.array(kernel), axis=-1)
-                    
-                    # Plot with dual scale like in inf.py
-                    if wandb_matrices and batch_id % 2400 == 0:
-                        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
-                        max_val = 0.5 #np.max(np.abs(kernel))
-                        
-                        # Full scale
-                        im1 = ax1.imshow(kernel, cmap='RdBu_r', vmin=-max_val, vmax=max_val, aspect='auto')
-                        ax1.set_title(f"{layer_name} Kernel (full scale)")
-                        ax1.set_ylabel('Hidden Dimension')
-                        plt.colorbar(im1, ax=ax1, fraction=0.02)
-                        
-                        # Half scale
-                        im2 = ax2.imshow(kernel, cmap='RdBu_r', vmin=-max_val/2, vmax=max_val/2, aspect='auto')
-                        ax2.set_title(f"{layer_name} Kernel (half scale)")
-                        ax2.set_ylabel('Hidden Dimension')
-                        ax2.set_xlabel('Kernel Position')
-                        plt.colorbar(im2, ax=ax2, fraction=0.02)
-                        
-                        net_dyn_histograms[f"train_params_plot/{layer_name}_kernel"] = wandb.Image(fig)
-                        plt.close(fig)
-                    
-                    # Log kernel statistics
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_mean"] = float(np.mean(weights))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_mean_abs"] = float(np.mean(np.abs(weights)))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_std"] = float(np.std(weights))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_max"] = float(np.max(weights))
-                    net_dyn_histograms[f"train_params_stats/{layer_name}_weights_min"] = float(np.min(weights))
-                    
-                elif 'DCLSLayer' not in param_name:  # Regular parameters (not DCLS)
-                    if wandb_matrices and batch_id % 2400 == 0:
-                        if param_value.ndim == 2:  # 2D matrices (Dense weights, etc.)
-                            fig, ax = plt.subplots(figsize=(8, 6))
-                            im = ax.imshow(np.array(param_value), aspect='auto', cmap='RdBu_r', interpolation='nearest', vmin=-0.5, vmax=0.5)
-                            ax.set_title(f"{param_name}")
-                            plt.colorbar(im, ax=ax)
-                            net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
-                            plt.close(fig)
-                        elif param_value.ndim == 1:  # 1D vectors (biases, layer norm scales/shifts)
-                            fig, ax = plt.subplots(figsize=(10, 4))
-                            param_array = np.array(param_value)
-                            # Plot as a horizontal bar or line plot
-                            if len(param_array) <= 256:  # For small vectors, use bar plot
-                                ax.bar(range(len(param_array)), param_array, color='steelblue', alpha=0.7)
-                                ax.set_xlabel('Parameter Index')
-                            else:  # For large vectors, use line plot
-                                ax.plot(param_array, 'steelblue', linewidth=1)
-                                ax.set_xlabel('Parameter Index')
-                            ax.set_ylabel('Value')
-                            ax.set_title(f"{param_name}")
-                            ax.grid(True, alpha=0.3)
-                            net_dyn_histograms[f"train_params_plot/{param_name}"] = wandb.Image(fig)
-                            plt.close(fig)
-                    
-                    # Log parameter statistics for all parameter types
-                    net_dyn_histograms[f"train_params_stats/{param_name}_mean"] = float(jnp.mean(param_value))
-                    net_dyn_histograms[f"train_params_stats/{param_name}_mean_abs"] = float(jnp.mean(jnp.abs(param_value)))
-                    net_dyn_histograms[f"train_params_stats/{param_name}_std"] = float(jnp.std(param_value))
-                    net_dyn_histograms[f"train_params_stats/{param_name}_max"] = float(jnp.max(param_value))
-                    net_dyn_histograms[f"train_params_stats/{param_name}_min"] = float(jnp.min(param_value))
-        
-        # Prepare all logging data in a single dictionary
-        current_lr = lr_fn(state.step) if lr_fn is not None else 0.0
-        log_dict = {
-            "train/learning_rate": current_lr,
-            "train/reg": aux_dict['reg'],
-        }
-        
-        # Add model behavior metrics if enabled
-        if log_model_behavior:
-            log_dict.update({
-                "train/mean_confidence": aux_dict['mean_confidence'],
-                "train/confidence_std": aux_dict['confidence_std'],
-            })
-            # for i in range(aux_dict['net_dyn'][-1][-1].shape[0]):
-            #     for i in range(aux_dict[f'logits'].shape[1]):
-            #         log_dict[f"train/logits_{i}_mean"] = aux_dict[f'logits'][:, i].mean()
-            #         log_dict[f"train/logits_{i}_std"] = aux_dict[f'logits'][:, i].std()
-            #         log_dict[f"train/logits_{i}_max"] = aux_dict[f'logits'][:, i].max()
-            #         log_dict[f"train/logits_{i}_min"] = aux_dict[f'logits'][:, i].min()
-            # Add class distribution metrics
-            for i, class_idx in enumerate(np.unique(all_targets)):
-                log_dict.update({
-                    f"train/pred_class_{class_idx}_ratio": pred_dist[i] / len(preds),
-                    f"train/target_class_{class_idx}_ratio": target_dist[i] / len(preds)
-                })
-        
-            
-        # Add gradient histograms if enabled
-        if wandb_gradients:
-            log_dict.update(grad_histograms)
-            # Add gradient variances and norms per layer
-            for key, var in grad_variances.items():
-                log_dict[f"grad_variance/{key}"] = var
-            for key, norm in grad_norms.items():
-                log_dict[f"grad_norm/{key}"] = norm
-        
-        # Add network dynamics histograms if enabled
-        if wandb_states:
-            log_dict.update(net_dyn_histograms)
-
         epoch_loss.append(loss)
         epoch_accuracy.append(accuracy)
         
@@ -433,12 +231,11 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         # start = time()
         state, grad_norm, post_clip_grad_norm = update_model(state, grads, kernel_size, grad_clip_norm)
         
-        # Add gradient clipping info to the log dictionary
+        # Update gradient clipping info in the log dictionary
         log_dict.update({
             "train_grad/norm": grad_norm,
-            "train_grad/norm_log": jnp.log10(grad_norm + 1e-8),
             "train_grad/norm_post_clip": post_clip_grad_norm,
-            "train_grad/norm_clipped": int(grad_norm > grad_clip_norm)  # Convert bool to int
+            "train_grad/norm_clipped": int(grad_norm > grad_clip_norm)
         })
         
         # Single consolidated wandb log call
@@ -460,67 +257,12 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     train_loss = np.mean(epoch_loss)
     train_accuracy = np.mean(epoch_accuracy)
     
-    # Compute epoch-level model behavior metrics
+    # Compute epoch-level model behavior metrics using new logging system
     if log_model_behavior and len(all_predictions) > 0:
-        all_predictions = np.array(all_predictions)
-        all_targets = np.array(all_targets)
-        all_confidences = np.array(all_confidences)
-        
-        # Class distribution analysis
-        unique_classes = np.unique(all_targets)
-        pred_dist = np.bincount(all_predictions, minlength=len(unique_classes))
-        target_dist = np.bincount(all_targets, minlength=len(unique_classes))
-        
-        # Confidence statistics
-        epoch_mean_confidence = np.mean(all_confidences)
-        epoch_confidence_std = np.std(all_confidences)
-        
-        # Log epoch-level metrics
-        epoch_metrics = {
-            "train_epoch/mean_confidence": epoch_mean_confidence,
-            "train_epoch/confidence_std": epoch_confidence_std,
-        }
-        
-        # Add class distribution metrics
-        for i, class_idx in enumerate(unique_classes):
-            epoch_metrics[f"train_epoch/pred_class_{class_idx}_ratio"] = pred_dist[i] / len(all_predictions)
-            epoch_metrics[f"train_epoch/target_class_{class_idx}_ratio"] = target_dist[i] / len(all_targets)
-        
-        # Classification report and confusion matrix (only for small number of classes to avoid clutter)
-        if len(unique_classes) <= 10:
-            cm = confusion_matrix(all_targets, all_predictions, labels=unique_classes)
-            # Log confusion matrix as a wandb table or image
-            epoch_metrics["train_epoch/confusion_matrix"] = wandb.Image(
-                plt_confusion_matrix(cm, unique_classes)
-            )
-            
-            # Generate and log classification report
-            class_report = classification_report(
-                all_targets, all_predictions, 
-                labels=unique_classes, 
-                output_dict=True,
-                zero_division=0
-            )
-            
-            # Log per-class metrics from classification report
-            for class_idx in unique_classes:
-                class_key = str(class_idx)
-                if class_key in class_report:
-                    epoch_metrics[f"train_epoch/precision_class_{class_idx}"] = class_report[class_key]['precision']
-                    epoch_metrics[f"train_epoch/recall_class_{class_idx}"] = class_report[class_key]['recall']
-                    epoch_metrics[f"train_epoch/f1_class_{class_idx}"] = class_report[class_key]['f1-score']
-            
-            # Log macro and weighted averages
-            if 'macro avg' in class_report:
-                epoch_metrics["train_epoch/macro_avg_precision"] = class_report['macro avg']['precision']
-                epoch_metrics["train_epoch/macro_avg_recall"] = class_report['macro avg']['recall']
-                epoch_metrics["train_epoch/macro_avg_f1"] = class_report['macro avg']['f1-score']
-            
-            if 'weighted avg' in class_report:
-                epoch_metrics["train_epoch/weighted_avg_precision"] = class_report['weighted avg']['precision']
-                epoch_metrics["train_epoch/weighted_avg_recall"] = class_report['weighted avg']['recall']
-                epoch_metrics["train_epoch/weighted_avg_f1"] = class_report['weighted avg']['f1-score']
-        
+        epoch_metrics = log_classification_metrics(
+            all_predictions, all_targets, all_confidences, 
+            dataset_name="train_epoch", config=logging_config
+        )
         # Log epoch metrics with custom step to avoid conflicts  
         wandb.log(epoch_metrics, step=state.step, commit=False)
     
@@ -531,7 +273,7 @@ def eval_model(state, model, images, labels, out_dim):
     """Computes loss, accuracy, and predictions for a single batch."""
 
     def loss_fn(params):
-        net_dyn, logits = model.apply({'params': params}, images)
+        net_dyn, logits, _ = model.apply({'params': params}, images)
         one_hot = jax.nn.one_hot(labels, out_dim)
         loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
         return loss, logits
@@ -552,7 +294,7 @@ def inf_model(state, model, images, labels, out_dim):
     """Computes loss, accuracy, and predictions for a single batch."""
 
     def loss_fn(params):
-        ndh, logits = model.apply({'params': params}, images)
+        ndh, logits, monitor = model.apply({'params': params}, images)
         one_hot = jax.nn.one_hot(labels, out_dim)
         loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
         return loss, ndh, logits
@@ -595,67 +337,11 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classificat
             all_targets.extend(np.array(labels))
             all_confidences.extend(np.array(max_probs))
     
-    # Compute and log classification metrics
+    # Compute and log classification metrics using new logging system
     if log_classification_report and len(all_predictions) > 0:
-        all_predictions = np.array(all_predictions)
-        all_targets = np.array(all_targets)
-        all_confidences = np.array(all_confidences)
-        
-        # Class distribution analysis
-        unique_classes = np.unique(all_targets)
-        pred_dist = np.bincount(all_predictions, minlength=len(unique_classes))
-        target_dist = np.bincount(all_targets, minlength=len(unique_classes))
-        
-        # Confidence statistics
-        mean_confidence = np.mean(all_confidences)
-        confidence_std = np.std(all_confidences)
-        
-        # Prepare metrics dictionary
-        eval_metrics = {
-            f"{dataset_name}/mean_confidence": mean_confidence,
-            f"{dataset_name}/confidence_std": confidence_std,
-        }
-        
-        # Add class distribution metrics
-        for i, class_idx in enumerate(unique_classes):
-            eval_metrics[f"{dataset_name}/pred_class_{class_idx}_ratio"] = pred_dist[i] / len(all_predictions)
-            eval_metrics[f"{dataset_name}/target_class_{class_idx}_ratio"] = target_dist[i] / len(all_targets)
-        
-        # Classification report and confusion matrix (only for small number of classes)
-        if len(unique_classes) <= 10:
-            cm = confusion_matrix(all_targets, all_predictions, labels=unique_classes)
-            # Log confusion matrix
-            eval_metrics[f"{dataset_name}/confusion_matrix"] = wandb.Image(
-                plt_confusion_matrix(cm, unique_classes)
-            )
-            
-            # Generate and log classification report
-            class_report = classification_report(
-                all_targets, all_predictions, 
-                labels=unique_classes, 
-                output_dict=True,
-                zero_division=0
-            )
-            
-            # Log per-class metrics from classification report
-            for class_idx in unique_classes:
-                class_key = str(class_idx)
-                if class_key in class_report:
-                    eval_metrics[f"{dataset_name}/precision_class_{class_idx}"] = class_report[class_key]['precision']
-                    eval_metrics[f"{dataset_name}/recall_class_{class_idx}"] = class_report[class_key]['recall']
-                    eval_metrics[f"{dataset_name}/f1_class_{class_idx}"] = class_report[class_key]['f1-score']
-            
-            # Log macro and weighted averages
-            if 'macro avg' in class_report:
-                eval_metrics[f"{dataset_name}/macro_avg_precision"] = class_report['macro avg']['precision']
-                eval_metrics[f"{dataset_name}/macro_avg_recall"] = class_report['macro avg']['recall']
-                eval_metrics[f"{dataset_name}/macro_avg_f1"] = class_report['macro avg']['f1-score']
-            
-            if 'weighted avg' in class_report:
-                eval_metrics[f"{dataset_name}/weighted_avg_precision"] = class_report['weighted avg']['precision']
-                eval_metrics[f"{dataset_name}/weighted_avg_recall"] = class_report['weighted avg']['recall']
-                eval_metrics[f"{dataset_name}/weighted_avg_f1"] = class_report['weighted avg']['f1-score']
-        
+        eval_metrics = log_classification_metrics(
+            all_predictions, all_targets, all_confidences, dataset_name=dataset_name
+        )
         return np.mean(losses), np.mean(accuracies), eval_metrics
     else:
         return np.mean(losses), np.mean(accuracies), {}

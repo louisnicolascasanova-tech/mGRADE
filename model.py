@@ -606,7 +606,7 @@ class HeinsenMinGeneralGRULayer(nn.Module):
             elif self.rec_act == 'gelu':
                 out = nn.gelu(h_new-1)
             elif self.rec_act == 'relu':
-                out = nn.relu(h_new-1)
+                out = nn.relu(h_new-2)
             # define the dropout layer
             out = nn.Dropout(rate=self.do_rate, broadcast_dims=(0,), deterministic=not self.training)(out)
             return (h_new, z_preact, h_tilde_preact, out)
@@ -853,6 +853,7 @@ class RNN_General_Backbone_Monitored(nn.Module):
     for comprehensive analysis and plotting.
     """
     training: bool 
+    padded: bool
     n_layers: int
     out_dim: int
     hidden_dim: Sequence
@@ -907,7 +908,10 @@ class RNN_General_Backbone_Monitored(nn.Module):
     decoder_bias: bool = False
 
     @nn.compact
-    def __call__(self, x):
+    def __call__(self, x):\
+    
+        if self.padded: 
+            x, length = x
         
         # Initialize monitoring dictionary
         monitor = {
@@ -917,10 +921,6 @@ class RNN_General_Backbone_Monitored(nn.Module):
             'final_output': None
         }
 
-        # x = nn.LayerNorm(name='LayerNormInput',
-        #                  bias_init=constant_init(),
-        #                  )(x) # normalize the input
-        x = x + 0.8
         # ========== ENCODER ==========
         if self.encoder:
             x = nn.Dense(self.hidden_dim[0], name='Encoder', 
@@ -1089,10 +1089,19 @@ class RNN_General_Backbone_Monitored(nn.Module):
             monitor['layers'].append(layer_monitor)
         
         # ========== OUTPUT BLOCK ==========
-        out = nn.Dense(self.out_dim, use_bias=self.decoder_bias, name='Dense_Out')(x)
-        monitor['final_output'] = out
+        x = nn.Dense(self.out_dim, use_bias=self.decoder_bias,
+                       #kernel_init=nn.initializers.variance_scaling(0.05, 'fan_in', 'truncated_normal'), 
+                       name='Dense_Out')(x)#[0])
+        monitor['final_output'] = x
         
-        return state_hist, out, monitor
+        # ========== LOGITS ==========
+        if self.padded: 
+            x = masked_meanpool(x, length)
+        else: 
+            x = jnp.mean(x, axis=0) # axis is 0 because x is (L, d_model), as we vmapped the batch dim
+
+        
+        return state_hist, x, monitor
 
 BatchRNN_General_Monitored = nn.vmap(RNN_General_Backbone_Monitored, in_axes=0, out_axes=0, 
                                       variable_axes={'params': None, 'dropout': None}, 
@@ -1228,7 +1237,7 @@ class RNN_General_Retrieval_Backbone(nn.Module):
         
         # Create vmapped encoder backbone
         BatchRNNEncoder = nn.vmap(
-            RNN_General_Backbone,
+            RNN_General_Backbone_Monitored,
             in_axes=0,
             out_axes=0,
             variable_axes={'params': None, 'dropout': None},
@@ -1300,7 +1309,7 @@ class RNN_General_Retrieval_Backbone(nn.Module):
         )
         
         # Encode sequences through RNN backbone
-        state_hist, encoded_x = encoder(x)  # encoded_x: (2*bsz, seq_len, d_model)
+        state_hist, encoded_x, monitor = encoder(x)  # encoded_x: (2*bsz, seq_len, d_model)
         
         # Mean pool across sequence dimension with masking for variable lengths
         pooled = batch_masked_meanpool(encoded_x, lengths)  # pooled: (2*bsz, d_model)
@@ -1319,5 +1328,5 @@ class RNN_General_Retrieval_Backbone(nn.Module):
         # Pass through retrieval decoder MLP
         logits = decoder(features)  # logits: (bsz, d_output)
         
-        return state_hist, logits
+        return state_hist, logits, monitor
 

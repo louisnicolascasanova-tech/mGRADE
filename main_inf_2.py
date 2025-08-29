@@ -25,16 +25,17 @@ import yaml
 import wandb
 
 
-def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='default'):
+def plot_monitored_data(ndh, monitor, batch_x, logits, labels, sim_name='default'):
     """
     Create comprehensive plots for all monitored variables across 5 batch samples.
     Now plots ALL dimensions (up to 128) instead of just first 5.
     Saves plots in images/{sim_name}/ subfolder.
     """
     # Create output directory
+    inputs = batch_x if isinstance(batch_x, jnp.ndarray) else batch_x[0]
     output_dir = os.path.join('images', sim_name)
     os.makedirs(output_dir, exist_ok=True)
-    num_samples = min(5, inputs.shape[0])
+    num_samples = min(5, inputs.shape[0])  # Plot up to 5 samples
     
     # Define all variables to plot from recurrent layers
     rec_variables = ['h_new', 'z_preact', 'h_tilde_preact', 'out']
@@ -50,6 +51,18 @@ def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='defaul
         'postnorm_output',
         'final_layer_output'
     ]
+
+    monitor_variables = [
+        'encoder_out',
+        'conv_input', 'conv_output', 
+        'rec_output',
+        'cm_input', 'cm_output',
+        'compression_output',
+        'layer_skip_output',
+        'postnorm_output',
+        'final_layer_output'
+    ]
+
     
     # Plot recurrent variables (from ndh) - ALL dimensions
     for var_name in rec_variables:
@@ -72,13 +85,16 @@ def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='defaul
             
             for dim in range(max_input_dims):
                 color = colors[dim % len(colors)]
-                alpha = 0.8 if max_input_dims <= 20 else 0.3
+                alpha = 0.3
                 ax_input.plot(inputs[sample_idx, :, dim], 
-                             color=color, alpha=alpha, linewidth=0.8)
+                             color=color, alpha=alpha, linewidth=0.8,
+                             label=f'dim_{dim}' if max_input_dims <= 10 else None)
             
             ax_input.set_title(f'Input ({max_input_dims} dims) - Sample {sample_idx}')
             ax_input.set_xlabel('Time Steps')
             ax_input.set_ylabel('Input Values')
+            if sample_idx == num_samples - 1 and max_input_dims <= 10:
+                ax_input.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax_input.grid(True, alpha=0.3)
             
             # Plot network layers (rows 1-6) - ALL dimensions
@@ -108,17 +124,21 @@ def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='defaul
                 
                 for dim in range(max_dims):
                     color = colors[dim % len(colors)]
-                    alpha = 0.8 if max_dims <= 20 else 0.3
+                    alpha = 0.3
                     ax.plot(data[sample_idx, :, dim], 
-                           color=color, alpha=alpha, linewidth=0.8)
+                           color=color, alpha=alpha, linewidth=0.8,
+                           label=f'dim_{dim}' if max_dims <= 10 else None)
                 
                 ax.set_title(f'Layer {layer_idx} ({max_dims} dims) - Sample {sample_idx}')
                 ax.set_xlabel('Time Steps')
                 ax.set_ylabel(f'{var_name}')
+                if sample_idx == num_samples - 1 and max_dims <= 10:
+                    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
                 ax.grid(True, alpha=0.3)
             
             # Plot final output at the bottom (row 7) - ALL output dimensions
             ax_output = axes[7, sample_idx]
+            out_hist = monitor['final_output']
             max_output_dims = out_hist.shape[-1]  # Plot ALL output dimensions
             
             colors = plt.cm.Set1(np.linspace(0, 1, max_output_dims))
@@ -186,13 +206,16 @@ def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='defaul
             
             for dim in range(max_input_dims):
                 color = colors[dim % len(colors)]
-                alpha = 0.8 if max_input_dims <= 20 else 0.3
+                alpha = 0.3
                 ax_input.plot(inputs[sample_idx, :, dim], 
-                             color=color, alpha=alpha, linewidth=0.8)
+                             color=color, alpha=alpha, linewidth=0.8,
+                             label=f'dim_{dim}' if max_input_dims <= 10 else None)
             
             ax_input.set_title(f'Input ({max_input_dims} dims) - Sample {sample_idx}')
             ax_input.set_xlabel('Time Steps')
             ax_input.set_ylabel('Input Values')
+            if sample_idx == num_samples - 1 and max_input_dims <= 10:
+                ax_input.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
             ax_input.grid(True, alpha=0.3)
             
             # Plot encoder output if this is encoder_out variable - ALL dimensions
@@ -205,13 +228,16 @@ def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='defaul
                 
                 for dim in range(max_dims):
                     color = colors[dim % len(colors)]
-                    alpha = 0.8 if max_dims <= 20 else 0.3
+                    alpha = 0.3
                     ax.plot(data[sample_idx, :, dim], 
-                           color=color, alpha=alpha, linewidth=1.5)
+                           color=color, alpha=alpha, linewidth=1.5,
+                           label=f'dim_{dim}' if max_dims <= 10 else None)
                 
                 ax.set_title(f'Encoder Output ({max_dims} dims) - Sample {sample_idx}')
                 ax.set_xlabel('Time Steps')
                 ax.set_ylabel('Encoder Output')
+                if sample_idx == num_samples - 1 and max_dims <= 10:
+                    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
                 ax.grid(True, alpha=0.3)
             
             # Plot layer variables - ALL dimensions
@@ -233,13 +259,16 @@ def plot_monitored_data(ndh, monitor, inputs, out_hist, labels, sim_name='defaul
                 
                 for dim in range(max_dims):
                     color = colors[dim % len(colors)]
-                    alpha = 0.8 if max_dims <= 20 else 0.3
+                    alpha = 0.3
                     ax.plot(data[sample_idx, :, dim], 
-                           color=color, alpha=alpha, linewidth=0.8)
+                           color=color, alpha=alpha, linewidth=0.8,
+                           label=f'dim_{dim}' if max_dims <= 10 else None)
                 
                 ax.set_title(f'Layer {layer_idx} {var_name} ({max_dims} dims) - Sample {sample_idx}')
                 ax.set_xlabel('Time Steps')
                 ax.set_ylabel(f'{var_name}')
+                if sample_idx == num_samples - 1 and max_dims <= 10:
+                    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
                 ax.grid(True, alpha=0.3)
             
             # Plot final output at the bottom - ALL output dimensions
@@ -292,13 +321,16 @@ def main(args=None):
     elif args.dataset in ['imdb', 'listops']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
-        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM)
+        batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM)
     elif args.dataset in ['path', 'pathx']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
-        batch_x, batch_y, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM)
-        
-    print(batch_x.shape, batch_y.shape)
+        batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM)
+    
+    if type(batch_x) == tuple:
+        print(batch_x[0].shape, batch_y.shape)
+    else:
+        print(batch_x.shape, batch_y.shape)
     print(batch_y.dtype)
     
     class_weights = compute_class_weights(trainloader, N_CLASSES) if args.dataset == 'listops' else None
@@ -306,27 +338,36 @@ def main(args=None):
     # Create monitored model
     model_cls = partial(
         BatchRNN_General_Monitored, 
+        padded=True,
         n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
-        encoder=args.encoder, encoder_scale=args.encoder_scale, encoder_bias=args.encoder_bias,
+        encoder=getattr(args, 'encoder', True), 
+        encoder_scale=getattr(args, 'encoder_scale', 1.0),
+        encoder_bias=getattr(args, 'encoder_bias', True),
         layer_skip=args.layer_skip, element_skip=args.element_skip,
+        # CONVOLUTION
         enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
         wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
         dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
-        weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
-        conv_ln=getattr(args, 'conv_ln', False),
         dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
         dcls_heterogeneous_weights=args.heterogeneous_weights, 
         dcls_heterogeneous_positions=args.heterogeneous_positions,
         dcls_heterogeneous_std=args.heterogeneous_std,
-        enable_rec=args.enable_rec, rec_act=args.rec_act, rec_ln=args.rec_ln, 
-        dense_z_weight_init_scale=args.dense_z_weight_init_scale, dense_z_bias_init=args.dense_z_bias_init,
+        weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
+        conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
+        # RECURRENT
+        enable_rec=args.enable_rec, rec_act=args.rec_act, 
+        rec_ln=getattr(args, 'rec_ln', False),
+        dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
+        dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
         dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
         dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
+        # CHANNEL MIXING
         enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
         cm_ln=getattr(args, 'cm_ln', False),
+        # COMPRESSION
         latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
         postnorm=args.postnorm,
-        decoder_bias=args.decoder_bias
+        decoder_bias=getattr(args, 'decoder_bias', True),
     )
                         
     steps_per_epoch = len(trainloader) 
@@ -353,16 +394,16 @@ def main(args=None):
         print(state.params['DCLSLayer_0']['weights'])
         print(state.params['DCLSLayer_0']['std'])
 
-    model = model_cls(training=False)
+    model = model_cls(training=False if args.do_rate == 0.0 else True)
 
-    batch = next(iter(testloader))
-    if len(batch) == 2:
-        inputs, labels = batch
-    elif len(batch) == 3:
-        inputs, labels, _ = prep_batch(batch, SEQ_LENGTH, IN_DIM)
 
     # Run the monitored model
-    ndh, out_hist, monitor = model.apply({'params': state.params}, inputs)
+    key = jax.random.PRNGKey(42)
+    key, dropout_key = jax.random.split(key)
+    print(dropout_key)
+    ndh, logits, monitor = model.apply({'params': state.params}, batch_x, rngs={'dropout': dropout_key})
+
+
 
     print("Network Dynamics Shape:", len(ndh), "layers")
     print("Monitor keys:", monitor.keys())
@@ -371,7 +412,7 @@ def main(args=None):
         print("Layer 0 monitor keys:", list(monitor['layers'][0].keys()))
     
     # Create comprehensive plots
-    plot_monitored_data(ndh, monitor, inputs, out_hist, labels, args_cli.sim_name)
+    plot_monitored_data(ndh, monitor, batch_x, logits, batch_y, args_cli.sim_name)
     print("All plots saved successfully!")
 
     
@@ -445,3 +486,5 @@ if __name__ == "__main__":
         wandb.config.update(args)
         
         main(args)
+
+# python main_inf_2.py --dataset imdb --gpu 0 --conv_mode vanilla  --file_nb 2199 --sim_name=do_6

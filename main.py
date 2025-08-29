@@ -16,7 +16,7 @@ from utils import create_mnist_classification_dataset, create_cifar_gs_classific
         compute_class_weights 
 from plots import plot_dynamics
 
-from model import BatchRNN_General, RNN_General_Retrieval_Backbone
+from model import BatchRNN_General, RNN_General_Retrieval_Backbone, BatchRNN_General_Monitored
 from training import create_train_state, run_epoch, validate, create_learning_rate_map
 from functools import partial
 
@@ -125,7 +125,7 @@ def main(args=None):
         
     else: 
         model_cls = partial(
-            BatchRNN_General,
+            BatchRNN_General_Monitored,
             padded=True if args.dataset in ['imdb', 'listops'] else False, 
             n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
             encoder=getattr(args, 'encoder', True), 
@@ -194,9 +194,9 @@ def main(args=None):
             print(state.params['DCLSLayer_0']['weights'])
             print(state.params['DCLSLayer_0']['std'])
         else:
-            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
-            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
-            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
+            print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['positions'])
+            print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['weights'])
+            print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['std'])
 
     # Generate experiment ID and create directories
     base_id = generate_experiment_id(args, HIDDEN_DIM, LATENT_DIM, SEED)
@@ -342,9 +342,9 @@ def main(args=None):
                 print(state.params['DCLSLayer_0']['weights'])
                 print(state.params['DCLSLayer_0']['std'])
             else:
-                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
-                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
-                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
+                print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['positions'])
+                print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['weights'])
+                print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['std'])
         if epoch == args.n_epochs*args.warmup_frac: 
             print("Saving the warmed up model")
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
@@ -525,4 +525,4 @@ if __name__ == "__main__":
 
 
 # python main.py --resume_from checkpoints/general/listops_H128L6B64_do0_lr0.004wd0.1we15.0_skipLFET_DCLS64axgaus0.7hetPF8_recrelu_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0 --dataset listops --gpu 0
-# python main.py --dataset aan --gpu 0 --conv_mode dcls --dcls_config 6 --file_nb 0
+# python main.py --dataset aan --gpu 2 --conv_mode dcls --dcls_config 6 --file_nb 0
