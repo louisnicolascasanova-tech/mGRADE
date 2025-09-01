@@ -115,78 +115,13 @@ def create_cifar_gs_classification_dataset(bsz=128, root="./data"):
     return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
 
 
-def write_config_yaml(args, CKPT_DIR):
+def write_config_yaml(config_file_path, CKPT_DIR):
     """
-    Write a YAML configuration file to CKPT_DIR using the values from args.
-    Uses the same template structure as the reference YAML files.
+    Copy the original configuration YAML file to CKPT_DIR.
     """
-    config = {
-        'seed': args.seed,
-        'mem_frac': args.mem_frac,
-        'n_epochs': args.n_epochs,
-        'batch_size': args.batch_size,
-        'lr': args.lr,
-        'scheduler': args.scheduler,
-        'alpha_cosine': args.alpha_cosine,
-        'warmup_frac': args.warmup_frac,
-        'weight_decay': args.weight_decay,
-        'n_layers': args.n_layers,
-        'hidden_dim': args.hidden_dim,
-        # ENCODER
-        'encoder': args.encoder,
-        # SKIP
-        'layer_skip': args.layer_skip,
-        'element_skip': args.element_skip,
-        # RECURRENT
-        'enable_rec': args.enable_rec,
-        'rec_act': args.rec_act,
-        # CONVOLUTION
-        'enable_conv': args.enable_conv,
-        'conv': args.conv,
-        'kernel_size': args.kernel_size,
-        # LERF and EERF
-        'wavenet_dilation': args.wavenet_dilation,
-        # LERF
-        'constant_dilation': args.constant_dilation,
-        # EERF
-        'dilation_schedule': args.dilation_schedule,
-        'dilation_offset': args.dilation_offset,
-        'dilation_boundary': args.dilation_boundary,
-        # DCLS
-        'delay_type': args.delay_type,
-        'delay_kernel': args.delay_kernel,
-        'init_std': args.init_std,
-        'kernel_n_elems': args.kernel_n_elems,
-        'heterogeneous_weights': args.heterogeneous_weights,
-        'heterogeneous_positions': args.heterogeneous_positions,
-        'heterogeneous_std': args.heterogeneous_std,
-        'train_weights': args.train_weights,
-        'train_positions': args.train_positions,
-        'train_std': args.train_std,
-        # CHANNEL MIXING
-        'enable_cm': args.enable_cm,
-        'channel_mixing': args.channel_mixing,
-        'cm_act': args.cm_act,
-        'glu_type': args.glu_type,
-        # COMPRESSION
-        'latent_dim': args.latent_dim,
-        'comp_act': args.comp_act,
-        # NORMALIZATION
-        'postnorm': args.postnorm,
-        # REGULARIZATION
-        'do_rate': args.do_rate,
-        'reg_factor': args.reg_factor,
-        # Wandb gradients
-        'wandb_gradients': args.wandb_gradients
-    }
-    
-    # Create the config file path
+    import shutil
     config_path = os.path.join(CKPT_DIR, 'config.yaml')
-    
-    # Write the YAML file
-    with open(config_path, 'w') as file:
-        yaml.dump(config, file, default_flow_style=False, sort_keys=False)
-    
+    shutil.copy2(config_file_path, config_path)
     print(f"Configuration saved to: {config_path}")
 
 

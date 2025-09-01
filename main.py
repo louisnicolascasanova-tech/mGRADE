@@ -209,8 +209,7 @@ def main(args=None):
 
 
     # Write configuration to YAML file
-    write_config_yaml(args, CKPT_DIR)
-
+    write_config_yaml(config_file, CKPT_DIR)
 
 
     train_losses = []
@@ -420,12 +419,13 @@ if __name__ == "__main__":
             conv_str = f'{args_cli.conv_mode}'
             if 'dcls' in args_cli.conv_mode:
                 conv_str += f'_c{args_cli.dcls_config}'
-            with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_wandb_{args_cli.file_nb}.yaml", "r") as file:
+            config_file = f"yaml_folder/{args_cli.dataset}_{conv_str}_wandb_{args_cli.file_nb}.yaml"
+            with open(config_file, "r") as file:
                 config = yaml.safe_load(file)
-            return config
+            return config, config_file
         
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"0.95"
-        sweep_config = load_config()
+        sweep_config, config_file = load_config()
         print(sweep_config)
         
         sweep_id = wandb.sweep(sweep_config, project="Den-minGRU_sweeps") 
@@ -435,12 +435,12 @@ if __name__ == "__main__":
         def parse_args():
             if args_cli.resume_from is not None:
                 # Load config from checkpoint directory
-                config_path = os.path.join(args_cli.resume_from, 'config.yaml')
-                if os.path.exists(config_path):
-                    print(f"Loading config from checkpoint: {config_path}")
-                    with open(config_path, "r") as file:
+                config_file = os.path.join(args_cli.resume_from, 'config.yaml')
+                if os.path.exists(config_file):
+                    print(f"Loading config from checkpoint: {config_file}")
+                    with open(config_file, "r") as file:
                         config = yaml.safe_load(file)
-                    return argparse.Namespace(**config)
+                    return argparse.Namespace(**config), config_file
                 else:
                     raise FileNotFoundError(f"No config.yaml found in checkpoint directory: {args_cli.resume_from}")
             else:
@@ -448,11 +448,12 @@ if __name__ == "__main__":
                 conv_str = f'{args_cli.conv_mode}'
                 if args_cli.conv_mode == 'dcls':
                     conv_str += f'_c{args_cli.dcls_config}'
-                with open(f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml", "r") as file:
+                config_file = f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml"
+                with open(config_file, "r") as file:
                     config = yaml.safe_load(file)
-                return argparse.Namespace(**config)
+                return argparse.Namespace(**config), config_file
 
-        args = parse_args()
+        args, config_file = parse_args()
         print(args)
 
         # add the CLI arguments to the args object
