@@ -170,7 +170,7 @@ def log_monitor_data(aux_dict: Dict, config: LoggingConfig, batch_id: int) -> Di
         ]
         
         for layer_info in monitor['layers']:
-            layer_idx = layer_info['layer_id']
+            layer_idx = int(layer_info['layer_id'][0])
             
             for key in monitor_keys:
                 if layer_info.get(key) is not None:
