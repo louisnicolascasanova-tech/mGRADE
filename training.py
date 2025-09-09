@@ -81,6 +81,8 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     
     # Add model behavior metrics to aux_dict
     aux_dict.update({
+        'loss': loss,
+        'accuracy': accuracy,
         'probs': probs,
         'predictions': predictions,
         'mean_confidence': mean_confidence,
@@ -261,7 +263,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     if log_model_behavior and len(all_predictions) > 0:
         epoch_metrics = log_classification_metrics(
             all_predictions, all_targets, all_confidences, 
-            dataset_name="train_epoch", config=logging_config
+            split_name="train_epoch", config=logging_config
         )
         # Log epoch metrics with custom step to avoid conflicts  
         wandb.log(epoch_metrics, step=state.step, commit=False)
@@ -311,7 +313,7 @@ def inf_model(state, model, images, labels, out_dim):
     return loss, accuracy, ndh
 
 
-def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classification_report=True, dataset_name="val"):
+def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classification_report=True, split_name='val'):
     # Compute average loss & accuracy
     model = model(training=False) # needed when using dropout
     losses, accuracies = [], []
@@ -340,7 +342,7 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim, log_classificat
     # Compute and log classification metrics using new logging system
     if log_classification_report and len(all_predictions) > 0:
         eval_metrics = log_classification_metrics(
-            all_predictions, all_targets, all_confidences, dataset_name=dataset_name
+            all_predictions, all_targets, all_confidences, split_name=split_name
         )
         return np.mean(losses), np.mean(accuracies), eval_metrics
     else:

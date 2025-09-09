@@ -16,7 +16,7 @@ from utils import create_mnist_classification_dataset, create_cifar_gs_classific
         compute_class_weights 
 from plots import plot_dynamics
 
-from model import BatchRNN_General, RNN_General_Retrieval_Backbone, BatchRNN_General_Monitored
+from model import BatchRNN_General, RNN_General_Retrieval_Backbone
 from training import create_train_state, run_epoch, validate, create_learning_rate_map
 from functools import partial
 
@@ -24,6 +24,43 @@ import os
 import argparse
 import yaml
 import wandb
+
+
+def load_config_with_dcls(config_file):
+    """Load config file and merge with DCLS and optimizer configurations if needed."""
+    with open(config_file, "r") as file:
+        config = yaml.safe_load(file)
+    
+    # Check if this is a DCLS config that needs merging
+    if config.get('conv') == 'dcls':
+        assert config.get('dcls_config') is not None, "DCLS config number must be specified in the main config"
+        dcls_config_file = f"yaml_folder/dcls_c{config.get('dcls_config')}.yaml"
+        
+        if os.path.exists(dcls_config_file):
+            with open(dcls_config_file, "r") as dcls_file:
+                dcls_config = yaml.safe_load(dcls_file)
+                
+            # Merge DCLS config into main config (main config takes precedence)
+            for key, value in dcls_config.items():
+                if key not in config:
+                    config[key] = value
+                    
+            print(f"Merged DCLS configuration from {dcls_config_file}")
+    
+    # Load optimizer configuration if it exists
+    optimizer_config_file = "yaml_folder/optimizer_config.yaml"
+    if os.path.exists(optimizer_config_file):
+        with open(optimizer_config_file, "r") as opt_file:
+            opt_config = yaml.safe_load(opt_file)
+            
+        # Merge optimizer config into main config (main config takes precedence)
+        for key, value in opt_config.items():
+            if key not in config:
+                config[key] = value
+                
+        print(f"Merged optimizer configuration from {optimizer_config_file}")
+    
+    return config
 
 
 def main(args=None):
@@ -93,6 +130,7 @@ def main(args=None):
         model_cls = partial(
             RNN_General_Retrieval_Backbone, 
             n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
+            enable_monitoring=getattr(args, 'enable_monitoring', False),
             encoder=getattr(args, 'encoder', True), 
             encoder_scale=getattr(args, 'encoder_scale', 1.0),
             encoder_bias=getattr(args, 'encoder_bias', True),
@@ -110,6 +148,8 @@ def main(args=None):
             # RECURRENT
             enable_rec=args.enable_rec, rec_act=args.rec_act, 
             rec_ln=getattr(args, 'rec_ln', False),
+            rec_dense_out=getattr(args, 'rec_dense_out', False),
+            rec_dense_out_act=getattr(args, 'rec_dense_out_act', False),
             dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
             dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
             dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
@@ -125,9 +165,10 @@ def main(args=None):
         
     else: 
         model_cls = partial(
-            BatchRNN_General_Monitored,
+            BatchRNN_General,
             padded=True if args.dataset in ['imdb', 'listops'] else False, 
             n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
+            enable_monitoring=getattr(args, 'enable_monitoring', False),
             encoder=getattr(args, 'encoder', True), 
             encoder_scale=getattr(args, 'encoder_scale', 1.0),
             encoder_bias=getattr(args, 'encoder_bias', True),
@@ -145,6 +186,8 @@ def main(args=None):
             # RECURRENT
             enable_rec=args.enable_rec, rec_act=args.rec_act, 
             rec_ln=getattr(args, 'rec_ln', False),
+            rec_dense_out=getattr(args, 'rec_dense_out', False),
+            rec_dense_out_act=getattr(args, 'rec_dense_out_act', False),
             dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
             dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
             dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
@@ -256,10 +299,10 @@ def main(args=None):
         
         if args.dataset != 'imdb':
             val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                        log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") 
+                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") 
         else: 
             val_loss, val_acc, val_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                        log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="val") # TODO: create a val loader for imdb
+                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") # TODO: create a val loader for imdb
         
         if val_acc > best_val_acc + improvement: 
             patience = 0
@@ -280,13 +323,12 @@ def main(args=None):
                 if best_val_acc > 0.93: improvement = 0.002 # 0.2%
                 elif best_val_acc > 0.88: improvement = 0.005 # 0.5%
             elif args.dataset == 'imdb':
-                if best_val_acc > 0.80: improvement = 0.003 # 0.3%
-                elif best_val_acc > 0.83: improvement = 0.001 # 0.1%
+                if best_val_acc > 0.83: improvement = 0.001 # 0.1%
 
 
             if args.dataset != 'imdb':
                 test_loss, test_acc, test_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                            log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), dataset_name="test")
+                                                            log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test")
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
             else:
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
@@ -310,7 +352,7 @@ def main(args=None):
         
         # Prepare main logging dictionary
         main_metrics = {
-            "train/loss": train_loss, "train/acc": train_acc, 
+            "train/epoch_loss": train_loss, "train/epoch_acc": train_acc, 
             "val/loss": val_loss, "val/acc": val_acc, 
             "val/loss_best": best_val_acc_loss, "val/acc_best": best_val_acc,
         }
@@ -390,7 +432,6 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
-    parser.add_argument("--dcls_config", type=int, default=0, help="config to use for DCLS. 0: homP_onesW, 1: hetP_onesW, ...")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
     parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
     parser.add_argument("--sweep", action="store_true", help="Run in sweep mode using wandb sweep configuration")
@@ -416,12 +457,8 @@ if __name__ == "__main__":
     if args_cli.sweep:
         # Sweep mode: load sweep config and run sweep
         def load_config():
-            conv_str = f'{args_cli.conv_mode}'
-            if 'dcls' in args_cli.conv_mode:
-                conv_str += f'_c{args_cli.dcls_config}'
-            config_file = f"yaml_folder/{args_cli.dataset}_{conv_str}_wandb_{args_cli.file_nb}.yaml"
-            with open(config_file, "r") as file:
-                config = yaml.safe_load(file)
+            config_file = f"yaml_folder/{args_cli.dataset}_{args_cli.conv_mode}_wandb_{args_cli.file_nb}.yaml"
+            config = load_config_with_dcls(config_file)
             return config, config_file
         
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"0.95"
@@ -438,19 +475,14 @@ if __name__ == "__main__":
                 config_file = os.path.join(args_cli.resume_from, 'config.yaml')
                 if os.path.exists(config_file):
                     print(f"Loading config from checkpoint: {config_file}")
-                    with open(config_file, "r") as file:
-                        config = yaml.safe_load(file)
+                    config = load_config_with_dcls(config_file)
                     return argparse.Namespace(**config), config_file
                 else:
                     raise FileNotFoundError(f"No config.yaml found in checkpoint directory: {args_cli.resume_from}")
             else:
                 # Load config from yaml_folder
-                conv_str = f'{args_cli.conv_mode}'
-                if args_cli.conv_mode == 'dcls':
-                    conv_str += f'_c{args_cli.dcls_config}'
-                config_file = f"yaml_folder/{args_cli.dataset}_{conv_str}_{args_cli.file_nb}.yaml"
-                with open(config_file, "r") as file:
-                    config = yaml.safe_load(file)
+                config_file = f"yaml_folder/{args_cli.dataset}_{args_cli.conv_mode}_{args_cli.file_nb}.yaml"
+                config = load_config_with_dcls(config_file)
                 return argparse.Namespace(**config), config_file
 
         args, config_file = parse_args()
@@ -526,4 +558,15 @@ if __name__ == "__main__":
 
 
 # python main.py --resume_from checkpoints/general/listops_H128L6B64_do0_lr0.004wd0.1we15.0_skipLFET_DCLS64axgaus0.7hetPF8_recrelu_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0 --dataset listops --gpu 0
+# python main.py --resume_from checkpoints/general/listops_H64L6B64_do0_lr0.003wd0.1we10.0_skipLTEF_DCLS64axgaus0.7hetPF8_recsigmoid_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0 --dataset listops --gpu 3
 # python main.py --dataset aan --gpu 2 --conv_mode dcls --dcls_config 6 --file_nb 0
+# python main.py --dataset listops --gpu 1 --conv_mode dcls --dcls_config 6 --file_nb 0 --sim_name listops_sigmoid_64dcls8_lr0.003_bs64_wd0.1_s0
+# python main.py --dataset listops --gpu 3 --conv_mode dcls --dcls_config 6 --file_nb 0 --sim_name listops_sigmoid_64dcls8_lr0.003_bs64_wd0.1_s0
+
+
+# 0: 0.005, rec_ln, conv_ln, wd0.02
+# 1: 0.005, wd0.02
+# 0: 0.005, rec_ln, conv_ln, wd0.1
+# 1: 0.005, wd0.1
+# 0: 0.003, rec_ln, conv_ln, wd0.02
+# 1: 0.003, wd0.02

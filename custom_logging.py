@@ -67,8 +67,6 @@ def log_gradient_histograms(grads: Dict, config: LoggingConfig, batch_id: int) -
     Returns:
         Dictionary of gradient metrics for wandb
     """
-    if not config.wandb_gradients or batch_id % config.gradient_freq != 0:
-        return {}
     
     grad_metrics = {}
     flat_grads = flatten_dict(grads, sep='/')
@@ -107,8 +105,6 @@ def log_network_dynamics(aux_dict: Dict, config: LoggingConfig, batch_id: int) -
     Returns:
         Dictionary of network dynamics metrics for wandb
     """
-    if not config.wandb_states or batch_id % config.dynamics_freq != 0 or 'net_dyn' not in aux_dict:
-        return {}
     
     dynamics_metrics = {}
     net_dyn = aux_dict['net_dyn']
@@ -144,8 +140,6 @@ def log_monitor_data(aux_dict: Dict, config: LoggingConfig, batch_id: int) -> Di
     Returns:
         Dictionary of monitor metrics for wandb
     """
-    if not config.wandb_states or batch_id % config.dynamics_freq != 0 or 'monitor' not in aux_dict:
-        return {}
     
     monitor_metrics = {}
     monitor = aux_dict['monitor']
@@ -162,20 +156,13 @@ def log_monitor_data(aux_dict: Dict, config: LoggingConfig, batch_id: int) -> Di
     
     # Log per-layer monitor data
     if 'layers' in monitor:
-        monitor_keys = [
-            'input', 'layer_skip_source', 'conv_input', 'conv_output', 'conv_skip',
-            'rec_input', 'rec_ln_output', 'rec_output', 'rec_skip', 
-            'cm_input', 'cm_output', 'cm_skip', 'compression_output',
-            'layer_skip_output', 'postnorm_output', 'final_layer_output'
-        ]
-        
         for layer_info in monitor['layers']:
             layer_idx = int(layer_info['layer_id'][0])
             
-            for key in monitor_keys:
-                if layer_info.get(key) is not None:
+            for key, value in layer_info.items():
+                if key != 'layer_id' and value is not None:
                     monitor_metrics.update(create_histogram_and_stats(
-                        layer_info[key], f"train_monitor/{key}_layer_{layer_idx}"))
+                        value, f"train_monitor/{key}_layer_{layer_idx}"))
     
     return monitor_metrics
 
@@ -374,6 +361,8 @@ def log_batch_metrics(aux_dict: Dict, state, lr_fn, grad_norm: float,
     # Add model behavior metrics if enabled
     if config.log_model_behavior:
         batch_metrics.update({
+            "train/loss": aux_dict['loss'],
+            "train/accuracy": aux_dict['accuracy'],
             "train/mean_confidence": aux_dict['mean_confidence'],
             "train/confidence_std": aux_dict['confidence_std'],
         })
@@ -382,7 +371,7 @@ def log_batch_metrics(aux_dict: Dict, state, lr_fn, grad_norm: float,
 
 
 def log_classification_metrics(all_predictions: List, all_targets: List, 
-                             all_confidences: List, dataset_name: str = "train_epoch",
+                             all_confidences: List, split_name: str = "train_epoch",
                              config: LoggingConfig = None) -> Dict[str, Any]:
     """
     Log comprehensive classification metrics including confusion matrix and per-class metrics.
@@ -391,7 +380,7 @@ def log_classification_metrics(all_predictions: List, all_targets: List,
         all_predictions: List of predictions from all batches
         all_targets: List of targets from all batches
         all_confidences: List of confidence scores from all batches
-        dataset_name: Prefix for metric names (e.g., "train_epoch", "val", "test")
+        split_name: Prefix for metric names (e.g., "train_epoch", "val", "test")
         config: Logging configuration
     
     Returns:
@@ -414,25 +403,25 @@ def log_classification_metrics(all_predictions: List, all_targets: List,
     pred_dist = np.bincount(all_predictions, minlength=len(unique_classes))
     target_dist = np.bincount(all_targets, minlength=len(unique_classes))
     
-    # Confidence statistics
-    mean_confidence = np.mean(all_confidences)
-    confidence_std = np.std(all_confidences)
+    # # Confidence statistics
+    # mean_confidence = np.mean(all_confidences)
+    # confidence_std = np.std(all_confidences)
     
-    metrics.update({
-        f"{dataset_name}/mean_confidence": mean_confidence,
-        f"{dataset_name}/confidence_std": confidence_std,
-    })
+    # metrics.update({
+    #     f"{split_name}/mean_confidence": mean_confidence,
+    #     f"{split_name}/confidence_std": confidence_std,
+    # })
     
     # Add class distribution metrics
     for i, class_idx in enumerate(unique_classes):
-        metrics[f"{dataset_name}/pred_class_{class_idx}_ratio"] = pred_dist[i] / len(all_predictions)
-        metrics[f"{dataset_name}/target_class_{class_idx}_ratio"] = target_dist[i] / len(all_targets)
+        metrics[f"{split_name}/pred_class_{class_idx}_ratio"] = pred_dist[i] / len(all_predictions)
+        metrics[f"{split_name}/target_class_{class_idx}_ratio"] = target_dist[i] / len(all_targets)
     
     # Classification report and confusion matrix (only for small number of classes)
     if len(unique_classes) <= config.max_classes_for_report:
         cm = confusion_matrix(all_targets, all_predictions, labels=unique_classes)
         # Log confusion matrix
-        metrics[f"{dataset_name}/confusion_matrix"] = wandb.Image(
+        metrics[f"{split_name}/confusion_matrix"] = wandb.Image(
             create_confusion_matrix_plot(cm, unique_classes)
         )
         
@@ -448,20 +437,20 @@ def log_classification_metrics(all_predictions: List, all_targets: List,
         for class_idx in unique_classes:
             class_key = str(class_idx)
             if class_key in class_report:
-                metrics[f"{dataset_name}/precision_class_{class_idx}"] = class_report[class_key]['precision']
-                metrics[f"{dataset_name}/recall_class_{class_idx}"] = class_report[class_key]['recall']
-                metrics[f"{dataset_name}/f1_class_{class_idx}"] = class_report[class_key]['f1-score']
+                metrics[f"{split_name}/precision_class_{class_idx}"] = class_report[class_key]['precision']
+                metrics[f"{split_name}/recall_class_{class_idx}"] = class_report[class_key]['recall']
+                metrics[f"{split_name}/f1_class_{class_idx}"] = class_report[class_key]['f1-score']
         
         # Log macro and weighted averages
         if 'macro avg' in class_report:
-            metrics[f"{dataset_name}/macro_avg_precision"] = class_report['macro avg']['precision']
-            metrics[f"{dataset_name}/macro_avg_recall"] = class_report['macro avg']['recall']
-            metrics[f"{dataset_name}/macro_avg_f1"] = class_report['macro avg']['f1-score']
+            metrics[f"{split_name}/macro_avg_precision"] = class_report['macro avg']['precision']
+            metrics[f"{split_name}/macro_avg_recall"] = class_report['macro avg']['recall']
+            metrics[f"{split_name}/macro_avg_f1"] = class_report['macro avg']['f1-score']
         
         if 'weighted avg' in class_report:
-            metrics[f"{dataset_name}/weighted_avg_precision"] = class_report['weighted avg']['precision']
-            metrics[f"{dataset_name}/weighted_avg_recall"] = class_report['weighted avg']['recall']
-            metrics[f"{dataset_name}/weighted_avg_f1"] = class_report['weighted avg']['f1-score']
+            metrics[f"{split_name}/weighted_avg_precision"] = class_report['weighted avg']['precision']
+            metrics[f"{split_name}/weighted_avg_recall"] = class_report['weighted avg']['recall']
+            metrics[f"{split_name}/weighted_avg_f1"] = class_report['weighted avg']['f1-score']
     
     return metrics
 
@@ -495,13 +484,22 @@ def log_training_batch(state, aux_dict: Dict, grads, model, lr_fn,
         config.grad_clip_norm if hasattr(config, 'grad_clip_norm') else 1.0, config))
     
     # Gradient logging
-    log_dict.update(log_gradient_histograms(grads, config, batch_id))
+    if not config.wandb_gradients or batch_id % config.gradient_freq != 0:
+        pass
+    else:
+        log_dict.update(log_gradient_histograms(grads, config, batch_id))
     
-    # Network dynamics logging
-    log_dict.update(log_network_dynamics(aux_dict, config, batch_id))
+    # Network dynamics logging (minGRU dynamics)
+    if not config.wandb_states or batch_id % config.dynamics_freq != 0 or 'net_dyn' not in aux_dict:
+        pass
+    else: 
+        log_dict.update(log_network_dynamics(aux_dict, config, batch_id))
     
-    # Monitor data logging
-    log_dict.update(log_monitor_data(aux_dict, config, batch_id))
+    # Monitor data logging (backbone monitoring)
+    if not config.wandb_states or batch_id % config.dynamics_freq != 0 or 'monitor' not in aux_dict:
+        pass
+    else:
+        log_dict.update(log_monitor_data(aux_dict, config, batch_id))
     
     # Parameter matrix logging
     log_dict.update(log_parameter_matrices(state, model, config, batch_id, dataset))
