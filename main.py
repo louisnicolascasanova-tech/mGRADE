@@ -13,7 +13,7 @@ from utils import create_mnist_classification_dataset, create_cifar_gs_classific
         create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset, \
         create_lra_aan_classification_dataset, \
         prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories, \
-        compute_class_weights 
+        compute_class_weights, create_speechcommands35_classification_dataset
 from plots import plot_dynamics
 
 from model import BatchRNN_General, RNN_General_Retrieval_Backbone
@@ -81,9 +81,10 @@ def main(args=None):
         'path': create_lra_path32_classification_dataset,
         'pathx': create_lra_pathx_classification_dataset,
         'aan': create_lra_aan_classification_dataset,
+        'gsc': create_speechcommands35_classification_dataset,
     }
     # recovering inputs for the tabulate function
-    if args.dataset in ['cifar', 'mnist']:
+    if args.dataset in ['cifar', 'mnist', 'gsc']:
         trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
         batch_x, batch_y = next(iter(testloader))
     elif args.dataset in ['imdb', 'listops', 'aan']:
@@ -429,7 +430,7 @@ def main(args=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan', 'gsc'], help="Dataset version: mnist or cifar")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")

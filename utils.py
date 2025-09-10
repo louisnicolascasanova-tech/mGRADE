@@ -1,7 +1,9 @@
 import jax
 import jax.numpy as jnp
 import torch
+import torchaudio
 import torchvision
+from torch.utils.data import DataLoader, Dataset
 import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
@@ -14,6 +16,13 @@ from typing import Union, Callable, Tuple
 from pathlib import Path
 from flax.linen import one_hot
 from lra import IMDB, AAN, ListOps, PathFinder
+
+import urllib.request
+import tarfile
+from pathlib import Path
+import random
+from typing import Tuple, Optional, List
+import numpy as np
 
 PX = 1/plt.rcParams['figure.dpi']
 DEFAULT_CACHE_DIR_ROOT = Path("./cache_dir/")
@@ -532,3 +541,230 @@ def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAUL
 	aux_loaders = {}
 
 	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
+
+
+class SpeechCommandsDataset(Dataset):
+    """
+    Google Speech Commands Dataset for PyTorch
+    
+    Args:
+        root (str): Root directory where dataset will be stored
+        subset (str): 'training', 'validation', or 'testing'
+        version (str): 'v1' or 'v2' 
+        download (bool): Whether to download the dataset if not found
+        transform (callable, optional): Optional transform to be applied on audio
+        sample_rate (int): Target sample rate for audio
+        max_length (int): Maximum length of audio in samples (pad/truncate)
+    """
+    
+    # Dataset URLs
+    URLS = {
+        'v1': 'http://download.tensorflow.org/data/speech_commands_v0.01.tar.gz',
+        'v2': 'http://download.tensorflow.org/data/speech_commands_v0.02.tar.gz'
+    }
+    
+    # Class labels for each version
+    CLASSES_V1 = [
+        'yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go',
+        'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+        'bed', 'bird', 'cat', 'dog', 'happy', 'house', 'marvin', 'sheila', 'tree', 'wow'
+    ]
+    
+    CLASSES_V2 = CLASSES_V1 + ['backward', 'forward', 'follow', 'learn', 'visual']
+    
+    def __init__(self, 
+                 root: str = './data',
+                 subset: str = 'training',
+                 version: str = 'v2',
+                 download: bool = True,
+                 transform: Optional[callable] = None,
+                 sample_rate: int = 16000,
+                 max_length: int = 16000):
+        
+        self.root = Path(root)
+        self.subset = subset
+        self.version = version.lower()
+        self.transform = transform
+        self.sample_rate = sample_rate
+        self.max_length = max_length
+        
+        # Set class labels based on version
+        self.classes = self.CLASSES_V2 if version == 'v2' else self.CLASSES_V1
+        self.class_to_idx = {cls: idx for idx, cls in enumerate(self.classes)}
+        self.idx_to_class = {idx: cls for idx, cls in enumerate(self.classes)}
+        
+        # Create directories
+        self.root.mkdir(parents=True, exist_ok=True)
+        self.data_dir = self.root / f'speech_commands_{self.version}'
+        
+        if download:
+            self._download()
+        
+        # Load file paths and labels
+        self.data = self._load_data()
+        
+    def _download(self):
+        """Download and extract the dataset"""
+        if self.data_dir.exists() and len(list(self.data_dir.glob('*'))) > 0:
+            print(f"Dataset already exists at {self.data_dir}")
+            return
+            
+        url = self.URLS[self.version]
+        filename = url.split('/')[-1]
+        filepath = self.root / filename
+        
+        print(f"Downloading {url}...")
+        urllib.request.urlretrieve(url, filepath)
+        
+        print(f"Extracting {filepath}...")
+        with tarfile.open(filepath, 'r:gz') as tar:
+            tar.extractall(self.data_dir)
+        
+        # Clean up
+        filepath.unlink()
+        print("Download complete!")
+        
+    def _load_data(self) -> List[Tuple[Path, int]]:
+        """Load file paths and corresponding labels"""
+        data = []
+        
+        # Load validation and test splits if they exist
+        validation_list = self.data_dir / 'validation_list.txt'
+        testing_list = self.data_dir / 'testing_list.txt'
+        
+        validation_files = set()
+        testing_files = set()
+        
+        if validation_list.exists():
+            with open(validation_list, 'r') as f:
+                validation_files = set(line.strip() for line in f)
+                
+        if testing_list.exists():
+            with open(testing_list, 'r') as f:
+                testing_files = set(line.strip() for line in f)
+        
+        # Collect all audio files
+        for class_name in self.classes:
+            class_dir = self.data_dir / class_name
+            if not class_dir.exists():
+                continue
+                
+            class_idx = self.class_to_idx[class_name]
+            
+            for audio_file in class_dir.glob('*.wav'):
+                relative_path = f"{class_name}/{audio_file.name}"
+                
+                # Determine subset
+                if self.subset == 'validation' and relative_path in validation_files:
+                    data.append((audio_file, class_idx))
+                elif self.subset == 'testing' and relative_path in testing_files:
+                    data.append((audio_file, class_idx))
+                elif self.subset == 'training' and relative_path not in validation_files and relative_path not in testing_files:
+                    data.append((audio_file, class_idx))
+        
+        # Add background noise as a separate class (optional)
+        background_dir = self.data_dir / '_background_noise_'
+        if background_dir.exists() and 'silence' not in self.classes:
+            # You can add silence/noise as an additional class if needed
+            pass
+            
+        print(f"Loaded {len(data)} samples for {self.subset} subset")
+        return data
+    
+    def __len__(self) -> int:
+        return len(self.data)
+    
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
+        """
+        Returns:
+            audio (torch.Tensor): Audio waveform of shape (1, max_length)
+            label (int): Class label
+        """
+        audio_path, label = self.data[idx]
+        
+        # Load audio
+        waveform, orig_sample_rate = torchaudio.load(audio_path)
+        
+        # Resample if necessary
+        if orig_sample_rate != self.sample_rate:
+            resampler = torchaudio.transforms.Resample(orig_sample_rate, self.sample_rate)
+            waveform = resampler(waveform)
+        
+        # Convert to mono if stereo
+        if waveform.shape[0] > 1:
+            waveform = torch.mean(waveform, dim=0, keepdim=True)
+        
+        # Pad or truncate to fixed length
+        if waveform.shape[1] > self.max_length:
+            waveform = waveform[:, :self.max_length]
+        elif waveform.shape[1] < self.max_length:
+            padding = self.max_length - waveform.shape[1]
+            waveform = torch.nn.functional.pad(waveform, (0, padding))
+        
+        # Apply transforms if any
+        if self.transform:
+            waveform = self.transform(waveform)
+            
+        return waveform.transpose(1,0), label
+
+def create_speechcommands35_classification_dataset(
+        bsz: int = 32,
+        root: str = './data',
+        sample_rate: int = 16000,
+        max_length: int = 16000,
+        download: bool = True) -> Tuple[DataLoader, DataLoader, DataLoader, int, int, int]:
+    """
+    Create DataLoaders for training, validation, and testing sets
+    
+    Returns:
+        Tuple of (train_loader, val_loader, test_loader)
+    """
+    N_CLASSES, SEQ_LENGTH, IN_DIM = 35, max_length, 1
+    # Common transforms (you can customize these)
+    transform = torchaudio.transforms.MelSpectrogram(
+        sample_rate=sample_rate,
+        n_mels=64,
+        n_fft=1024,
+        hop_length=512
+    )
+    
+    # Create datasets
+    train_dataset = SpeechCommandsDataset(
+        root=root, subset='training', version='v2',
+        download=download, transform=None,  # Apply transforms later if needed
+        sample_rate=sample_rate, max_length=max_length
+    )
+    
+    val_dataset = SpeechCommandsDataset(
+        root=root, subset='validation', version='v2',
+        download=False, transform=None,
+        sample_rate=sample_rate, max_length=max_length
+    )
+    
+    test_dataset = SpeechCommandsDataset(
+        root=root, subset='testing', version='v2',
+        download=False, transform=None,
+        sample_rate=sample_rate, max_length=max_length
+    )
+    
+    def custom_collate_fn(batch):
+        transposed_data = list(zip(*batch))
+        labels = np.array(transposed_data[1])
+        waveforms = np.array(transposed_data[0])
+
+        return waveforms, labels       
+
+    # Create dataloaders
+    train_loader = DataLoader(
+        train_dataset, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+    )
+    
+    val_loader = DataLoader(
+        val_dataset, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=False
+    )
+    
+    test_loader = DataLoader(
+        test_dataset, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=False
+    )
+    
+    return train_loader, val_loader, test_loader, N_CLASSES, SEQ_LENGTH, IN_DIM
