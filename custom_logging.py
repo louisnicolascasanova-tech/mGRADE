@@ -21,7 +21,7 @@ class LoggingConfig:
     
     # Logging frequencies
     gradient_freq: int = 1  # Log gradients every batch
-    dynamics_freq: int = 500  # Log dynamics every N batches
+    dynamics_freq: int = 1500  # Log dynamics every N batches
     matrix_freq: int = 2400  # Log parameter matrices every N batches
     
     # Classification logging
@@ -399,9 +399,10 @@ def log_classification_metrics(all_predictions: List, all_targets: List,
     metrics = {}
     
     # Class distribution analysis
-    unique_classes = np.unique(all_targets)
-    pred_dist = np.bincount(all_predictions, minlength=len(unique_classes))
-    target_dist = np.bincount(all_targets, minlength=len(unique_classes))
+    
+    unique_classes = np.unique(all_targets.astype(int))
+    pred_dist = np.bincount(all_predictions.astype(int), minlength=len(unique_classes))
+    target_dist = np.bincount(all_targets.astype(int), minlength=len(unique_classes))
     
     # # Confidence statistics
     # mean_confidence = np.mean(all_confidences)

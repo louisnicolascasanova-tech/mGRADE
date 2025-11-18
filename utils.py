@@ -321,7 +321,7 @@ def create_lra_aan_classification_dataset(
     )
 
 
-def prep_batch(batch, seq_len, in_dim):
+def prep_batch(batch, seq_len, in_dim, dtype=jnp.float32):
     """Take a batch and convert it to a standard x/y format"""
     if len(batch) == 2:
         inputs, targets = batch
@@ -331,8 +331,8 @@ def prep_batch(batch, seq_len, in_dim):
     else:
         raise RuntimeError("Unhandled data type. ")
 
-    inputs = jnp.array(inputs.numpy()).astype(float)  # convert to jax (float32)
-    targets = jnp.array(targets.numpy())  # convert to jax (int32)
+    inputs = jnp.array(inputs.numpy()).astype(dtype)  # convert to jax (float32)
+    targets = jnp.array(targets.numpy()).astype(jnp.float32)  # convert to jax (int32)
     lengths = aux_data.get("lengths", None)  # get lengths from aux if it is there.
 
     # Make all batches have same sequence length
@@ -349,9 +349,9 @@ def prep_batch(batch, seq_len, in_dim):
     # If there are lengths, bundle them up.
     if lengths is not None:
         lengths = np.asarray(lengths.numpy())
-        full_inputs = (inputs.astype(float), lengths.astype(float))
+        full_inputs = (inputs.astype(dtype), lengths.astype(dtype))
     else:
-        full_inputs = inputs.astype(float)
+        full_inputs = inputs.astype(dtype)
 
     return full_inputs, targets
 
@@ -395,10 +395,12 @@ def generate_experiment_id(args, hidden_dim, latent_dim, seed):
         delay_ker_str = 'gaus' if args.delay_kernel == 'gaussian' else 'exp'
         hete_pos_str = f'hetP{bool_to_str(args.heterogeneous_positions)}'
         conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}{args.kernel_n_elems}'
-    else:
+    elif args.conv == 'conv':
         wavenet_str = 'eerf' if args.wavenet_dilation else 'lerf'
         schedule_str = args.dilation_schedule if args.dilation_schedule is not None else 'F'
         conv_str = f'conv{args.kernel_size}{wavenet_str}sch{schedule_str}'
+    else:
+        conv_str = 'F'
     
     # Channel mixing config string
     if args.channel_mixing == 'glu':
@@ -410,11 +412,11 @@ def generate_experiment_id(args, hidden_dim, latent_dim, seed):
     
     # Heterogeneous config string
     hetero_parts = [
-        f"hetW{bool_to_str(args.heterogeneous_weights)}",
-        f"S{bool_to_str(args.heterogeneous_std)}",
-        f"trainW{bool_to_str(args.train_weights)}",
-        f"S{bool_to_str(args.train_std)}",
-        f"P{bool_to_str(args.train_positions)}"
+        f"hetW{bool_to_str(getattr(args, 'heterogeneous_weights', False))}",
+        f"S{bool_to_str(getattr(args, 'heterogeneous_weights', False))}",
+        f"trainW{bool_to_str(getattr(args, 'train_weights', False))}",
+        f"S{bool_to_str(getattr(args, 'train_std', False))}",
+        f"P{bool_to_str(getattr(args, 'train_positions', False))}"
     ]
     hetero_str = "".join(hetero_parts)
     
@@ -710,6 +712,7 @@ class SpeechCommandsDataset(Dataset):
 def create_speechcommands35_classification_dataset(
         bsz: int = 32,
         root: str = './data',
+        dtype: jnp.dtype = jnp.float32,
         sample_rate: int = 16000,
         max_length: int = 16000,
         download: bool = True) -> Tuple[DataLoader, DataLoader, DataLoader, int, int, int]:
@@ -749,8 +752,8 @@ def create_speechcommands35_classification_dataset(
     
     def custom_collate_fn(batch):
         transposed_data = list(zip(*batch))
-        labels = np.array(transposed_data[1])
-        waveforms = np.array(transposed_data[0])
+        labels = jnp.array(transposed_data[1])
+        waveforms = jnp.array(transposed_data[0], dtype=dtype)  # Shape: (batch_size, max_length, 1)
 
         return waveforms, labels       
 

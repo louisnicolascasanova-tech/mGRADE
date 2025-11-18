@@ -8,6 +8,8 @@ import optax
 import matplotlib.pyplot as plt
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
+# jax.config.update("jax_enable_x64", False) # disable 64-bit
+# jax.config.update('jax_default_matmul_precision', 'float16')
 from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, \
         create_lra_imdb_classification_dataset, create_lra_listops_classification_dataset, \
         create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset, \
@@ -68,6 +70,10 @@ def main(args=None):
         wandb.init()
         args = wandb.config
         args._from_wandb = True
+
+    dtype = getattr(args, 'dtype', 'float32')
+    dtype = jnp.float16 if dtype == 'float16' else jnp.float32
+    print(f"Using dtype: {dtype}")
     
     # Setup random seeds and configuration
     key, SEED = setup_random_seeds(args.seed)
@@ -85,7 +91,7 @@ def main(args=None):
     }
     # recovering inputs for the tabulate function
     if args.dataset in ['cifar', 'mnist', 'gsc']:
-        trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data")
+        trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data", dtype=dtype)
         batch_x, batch_y = next(iter(testloader))
     elif args.dataset in ['imdb', 'listops', 'aan']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
@@ -98,8 +104,10 @@ def main(args=None):
 
     if args.dataset in ['imdb', 'listops', 'aan']:
         print(batch_x[0].shape, batch_x[1].shape) 
+        print(batch_x[0].dtype)
     else:
         print(batch_x.shape, batch_y.shape)
+        print(batch_x.dtype)
     print(batch_y.dtype)
 
     
@@ -178,10 +186,13 @@ def main(args=None):
             enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
             wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
             dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
-            dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
-            dcls_heterogeneous_weights=args.heterogeneous_weights, 
-            dcls_heterogeneous_positions=args.heterogeneous_positions,
-            dcls_heterogeneous_std=args.heterogeneous_std,
+            dcls_fft=True, 
+            dcls_type=getattr(args, 'delay_type', None), #args.delay_type, 
+            dcls_kernel=getattr(args, 'delay_kernel', None), #args.delay_kernel, 
+            dcls_std=getattr(args, 'init_std', None), # args.init_std,
+            dcls_heterogeneous_weights=getattr(args, 'heterogeneous_weights', None), #args.heterogeneous_weights, 
+            dcls_heterogeneous_positions=getattr(args, 'heterogeneous_positions', None), #args.heterogeneous_positions,
+            dcls_heterogeneous_std=getattr(args, 'heterogeneous_std', None), #args.heterogeneous_std,
             weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
             conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
             # RECURRENT
@@ -205,7 +216,7 @@ def main(args=None):
     # model_mingru = BatchRNN(HIDDEN_DIM, 10, args.n_layers, recurrent_layer=minGRULayer)
     steps_per_epoch = len(trainloader) 
     lr_map, lr_fn = create_learning_rate_map(args, steps_per_epoch)
-    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay}
+    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay, 'dtype': dtype}
     state, n_params, _ = create_train_state(**sim_args)
     
     # Load checkpoint if resume_from is provided
@@ -237,10 +248,13 @@ def main(args=None):
             print(state.params['DCLSLayer_0']['positions'])
             print(state.params['DCLSLayer_0']['weights'])
             print(state.params['DCLSLayer_0']['std'])
+            print(state.params['DCLSLayer_0']['positions'].dtype)
+            print(state.params['DCLSLayer_0']['weights'].dtype)
+            print(state.params['DCLSLayer_0']['std'].dtype)
         else:
-            print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['positions'])
-            print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['weights'])
-            print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['std'])
+            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
+            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
+            print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
 
     # Generate experiment ID and create directories
     base_id = generate_experiment_id(args, HIDDEN_DIM, LATENT_DIM, SEED)
@@ -279,6 +293,16 @@ def main(args=None):
     bad_count = 0
     patience = 0
     lim_patience = 10
+
+    if hasattr(args, 'resume_from') and args.resume_from is not None:
+        if args.dataset != 'imdb':
+            val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") 
+        else: 
+            val_loss, val_acc, val_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") # TODO: create a val loader for imdb
+        print(f"Resumed model validation | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
+
     for epoch in range(start_epoch, args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         
@@ -323,13 +347,14 @@ def main(args=None):
             elif args.dataset == 'pathx':
                 if best_val_acc > 0.93: improvement = 0.002 # 0.2%
                 elif best_val_acc > 0.88: improvement = 0.005 # 0.5%
-            elif args.dataset == 'imdb':
+            elif args.dataset == 'imdb' or args.dataset == 'aan' or args.dataset == 'gsc':
                 if best_val_acc > 0.83: improvement = 0.001 # 0.1%
+
 
 
             if args.dataset != 'imdb':
                 test_loss, test_acc, test_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                            log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test") if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test")
+                                                            log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test") # if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test")
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
             else:
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
@@ -383,10 +408,13 @@ def main(args=None):
                 print(state.params['DCLSLayer_0']['positions'])
                 print(state.params['DCLSLayer_0']['weights'])
                 print(state.params['DCLSLayer_0']['std'])
+                print(state.params['DCLSLayer_0']['positions'].dtype)
+                print(state.params['DCLSLayer_0']['weights'].dtype)
+                print(state.params['DCLSLayer_0']['std'].dtype)
             else:
-                print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['positions'])
-                print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['weights'])
-                print(state.params['VmapRNN_General_Backbone_Monitored_0']['DCLSLayer_0']['std'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
         if epoch == args.n_epochs*args.warmup_frac: 
             print("Saving the warmed up model")
             checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
@@ -499,7 +527,7 @@ if __name__ == "__main__":
         # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"
         
-        wandb.init(project="DenGRU_general", name=f"{args_cli.sim_name}")
+        wandb.init(project="DenGRU_general", name=f"{args.sim_name}")
         wandb.config.update(args)
         
         main(args)

@@ -25,8 +25,8 @@ def clip_gradients_elementwise(grads, min_val=-1.0, max_val=1.0):
 def update_model(state, grads, kernel_size, grad_clip_norm=1.0):
     # Apply gradient clipping
     grad_norm = optax.global_norm(grads)
-    # clipped_grads = optax.clip_by_global_norm(grad_clip_norm).update(grads, None)[0]
-    clipped_grads = clip_gradients_elementwise(grads, -grad_clip_norm, grad_clip_norm)
+    clipped_grads = optax.clip_by_global_norm(grad_clip_norm).update(grads, None)[0]
+    # clipped_grads = clip_gradients_elementwise(grads, -grad_clip_norm, grad_clip_norm)
     grad_norm_post_clip = optax.global_norm(clipped_grads)
     
     state = state.apply_gradients(grads=clipped_grads)
@@ -46,13 +46,13 @@ def update_model(state, grads, kernel_size, grad_clip_norm=1.0):
 
 
 @partial(jax.jit, static_argnames=('model','reg_factor', 'class_weights'))
-def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
+def apply_model(state, model, x, y, reg_factor, do_key, class_weights, dtype=jnp.float32):
     """Computes gradients, loss and accuracy for a single batch."""
     # do_key = jax.random.fold_in(do_key, state.step)
     def loss_fn(params):
-        net_dyn, logits, monitor = model.apply({'params': params}, x, rngs={'dropout': do_key})
-        one_hot = jax.nn.one_hot(y, model.out_dim)
-        batch_loss = optax.softmax_cross_entropy(logits=logits, labels=one_hot)
+        net_dyn, logits, monitor = model.apply({'params': params}, x.astype(dtype), rngs={'dropout': do_key}) # TODO: x.astype(dtype)
+        one_hot = jax.nn.one_hot(y, model.out_dim, dtype=jnp.float32) # keeping one_hot in float32 to avoid numerical issues
+        batch_loss = optax.softmax_cross_entropy(logits=logits.astype(jnp.float32), labels=one_hot) # casting logits to float32 to avoid numerical issues
         if class_weights is not None:
             class_weights_jnp = jnp.array(class_weights, dtype=jnp.float32) # Need to create a new variable to avoid a shadowing error
             batch_loss = batch_loss * class_weights_jnp[y]
@@ -92,11 +92,11 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights):
     # aux_dict.pop('logits')
     return grads, loss, accuracy, aux_dict
 
-def apply_retrieval_model(state, model, x, y, reg_factor, do_key):
+def apply_retrieval_model(state, model, x, y, reg_factor, do_key, dtype=jnp.float32):
     def loss_fn(params):
-        net_dyn, logits, monitor = model.apply({'params': params}, x, rngs={'dropout': do_key})
-        one_hot = jax.nn.one_hot(y, model.out_dim)
-        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
+        net_dyn, logits, monitor = model.apply({'params': params}, x.astype(dtype), rngs={'dropout': do_key})
+        one_hot = jax.nn.one_hot(y, model.out_dim, dtype=jnp.float32) # keeping one_hot in float32 to avoid numerical issues
+        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits.astype(jnp.float32), labels=one_hot)) # casting logits to float32 to avoid numerical issues
         return loss, {'logits': logits, 'net_dyn': net_dyn, 'monitor': monitor}
     grad_fn = jax.value_and_grad(loss_fn, has_aux=True)
     (loss, aux_dict), grads = grad_fn(state.params)
@@ -139,7 +139,7 @@ def map_nested_fn(fn):
 
 def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batch=None, keys_to_track=None, inner_keys_to_track=None, lr_fn=None,
               wandb_gradients=False, wandb_states=False, wandb_matrices=False, in_dim=None, seq_len=None, grad_clip_norm=1.0, log_model_behavior=True, epoch_num=0, 
-              class_weights=None, retrieval=False, dataset=None):
+              class_weights=None, retrieval=False, dataset=None, dtype=jnp.float32):
     """Train for a single epoch."""
     model = model_cls(training=True)
     epoch_loss = []
@@ -167,7 +167,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         if len(batch) == 2:  # If the batch is already preprocessed
             batch_x, batch_y = batch
         elif len(batch) == 3:  # If the batch contains mask
-            batch_x, batch_y = prep_batch(batch, seq_len, in_dim)
+            batch_x, batch_y = prep_batch(batch, seq_len, in_dim, dtype=dtype)
         # start = time()
 
         grads, loss, accuracy, aux_dict = apply_model(state, model, batch_x, batch_y, reg_factor=reg_factor, do_key=do_key, class_weights=class_weights)
@@ -181,24 +181,24 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
                 aux_dict_hist[k].append(aux_dict[k])
         
         # Collect model behavior data
-        if log_model_behavior:
-            all_predictions.extend(np.array(aux_dict['predictions']))
-            all_targets.extend(np.array(batch_y))
-            all_confidences.extend(np.array(aux_dict['max_probs']))
+        # if log_model_behavior:
+        #     all_predictions.extend(np.array(aux_dict['predictions']))
+        #     all_targets.extend(np.array(batch_y))
+        #     all_confidences.extend(np.array(aux_dict['max_probs']))
             
             
             
-            # find the prediction class distribution
-            preds = np.array(aux_dict['predictions'])
-            targets = np.array(batch_y)
-            unique_classes = np.unique(targets) # np.linspace(0, 9, num=10, dtype=int)  # Assuming classes are 0-9 for classification tasks
-            if len(unique_classes) > 4: 
-                unique_classes = np.linspace(0, 9, num=10, dtype=int)  # For larger classes, use a fixed range
-            else: 
-                unique_classes = np.linspace(0, 1, num=2, dtype=int)  # For binary classification, use 0 and 1
-            unique_pred_classes = np.unique(preds)
-            pred_dist = np.bincount(preds, minlength=len(unique_classes))
-            target_dist = np.bincount(targets, minlength=len(unique_classes))
+        #     # find the prediction class distribution
+        #     preds = np.array(aux_dict['predictions'])
+        #     targets = np.array(batch_y)
+        #     unique_classes = np.unique(targets) # np.linspace(0, 9, num=10, dtype=int)  # Assuming classes are 0-9 for classification tasks
+        #     if len(unique_classes) > 4: 
+        #         unique_classes = np.linspace(0, 9, num=10, dtype=int)  # For larger classes, use a fixed range
+        #     else: 
+        #         unique_classes = np.linspace(0, 1, num=2, dtype=int)  # For binary classification, use 0 and 1
+        #     unique_pred_classes = np.unique(preds)
+        #     pred_dist = np.bincount(preds.astype(int), minlength=len(unique_classes))
+        #     target_dist = np.bincount(targets.astype(int), minlength=len(unique_classes))
                     
         # Use new logging system
         log_dict = log_training_batch(
@@ -243,7 +243,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
         # Single consolidated wandb log call
         wandb.log(log_dict, step=state.step)
         
-        grads_previous = grads
+        # grads_previous = grads
         # print(f"lr: {lr_fn(state.step)}")
         # stop = time()
         # print("update pass time:", stop-start)
@@ -270,14 +270,14 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size, lim_batc
     
     return state, train_loss, train_accuracy, (break_flag, aux_dict_hist)
 
-@partial(jax.jit, static_argnames=('model', 'out_dim'))
-def eval_model(state, model, images, labels, out_dim):
+@partial(jax.jit, static_argnames=('model', 'out_dim', 'dtype'))
+def eval_model(state, model, images, labels, out_dim, dtype=jnp.float32):
     """Computes loss, accuracy, and predictions for a single batch."""
 
     def loss_fn(params):
-        net_dyn, logits, _ = model.apply({'params': params}, images)
-        one_hot = jax.nn.one_hot(labels, out_dim)
-        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
+        net_dyn, logits, _ = model.apply({'params': params}, images.astype(dtype)) # TODO: images.astype(dtype)
+        one_hot = jax.nn.one_hot(labels, out_dim, dtype=jnp.float32) # keeping one_hot in float32 to avoid numerical issues
+        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits.astype(jnp.float32), labels=one_hot)) # casting logits to float32 to avoid numerical issues
         return loss, logits
 
     loss, logits = loss_fn(state.params)
@@ -291,14 +291,14 @@ def eval_model(state, model, images, labels, out_dim):
     
     return loss, accuracy, predictions, max_probs, mean_confidence
 
-@partial(jax.jit, static_argnames=('model', 'out_dim'))
-def inf_model(state, model, images, labels, out_dim):
+@partial(jax.jit, static_argnames=('model', 'out_dim', 'dtype'))
+def inf_model(state, model, images, labels, out_dim, dtype=jnp.float32):
     """Computes loss, accuracy, and predictions for a single batch."""
 
     def loss_fn(params):
-        ndh, logits, monitor = model.apply({'params': params}, images)
-        one_hot = jax.nn.one_hot(labels, out_dim)
-        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits, labels=one_hot))
+        ndh, logits, monitor = model.apply({'params': params}, images.astype(dtype))
+        one_hot = jax.nn.one_hot(labels, out_dim, dtype=jnp.float32) # keeping one_hot in float32 to avoid numerical issues
+        loss = jnp.mean(optax.softmax_cross_entropy(logits=logits.astype(jnp.float32), labels=one_hot))
         return loss, ndh, logits
 
     loss, ndh, logits = loss_fn(state.params)
@@ -385,10 +385,11 @@ def create_learning_rate_map(args, steps_per_epoch):
     param_rules = []
     
     # DCLS-specific parameters (with train/freeze control)
-    if args.train_std:
-        param_rules.append(('DCLSLayer', 'std', 'adam'))
-    else: 
-        param_rules.append(('DCLSLayer', 'std', 'none'))
+    if args.conv == 'dcls':
+        if args.train_std:
+            param_rules.append(('DCLSLayer', 'std', 'adam'))
+        else:
+            param_rules.append(('DCLSLayer', 'std', 'none'))
     
     # Layer-specific bias optimization (only for layers that have bias)
     default_bias_optim = getattr(args, 'bias_optim', 'adam') 
@@ -405,17 +406,18 @@ def create_learning_rate_map(args, steps_per_epoch):
     ])
     
     # DCLS weights and positions (with train/freeze control)
-    if args.train_weights:
-        dcls_weights_optim = getattr(args, 'dcls_weights_optim', 'adamw')
-        param_rules.append(('DCLSLayer', 'weights', dcls_weights_optim))
-    else:
-        param_rules.append(('DCLSLayer', 'weights', 'none'))
-        
-    if args.train_positions:
-        dcls_positions_optim = getattr(args, 'dcls_positions_optim', 'adam_big')
-        param_rules.append(('DCLSLayer', 'positions', dcls_positions_optim))
-    else:
-        param_rules.append(('DCLSLayer', 'positions', 'none'))
+    if args.conv == 'dcls':
+        if args.train_weights:
+            dcls_weights_optim = getattr(args, 'dcls_weights_optim', 'adamw')
+            param_rules.append(('DCLSLayer', 'weights', dcls_weights_optim))
+        else:
+            param_rules.append(('DCLSLayer', 'weights', 'none'))
+            
+        if args.train_positions:
+            dcls_positions_optim = getattr(args, 'dcls_positions_optim', 'adam_big')
+            param_rules.append(('DCLSLayer', 'positions', dcls_positions_optim))
+        else:
+            param_rules.append(('DCLSLayer', 'positions', 'none'))
     
     # Layer-specific scale optimization (only for layers that have scale)
     default_scale_optim = getattr(args, 'scale_optim', 'adam')
@@ -460,23 +462,25 @@ def create_learning_rate_map(args, steps_per_epoch):
     return lr_map, lr_fn
 
 
-def init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size):
+def init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size, dtype=jnp.float32):
     
     
-    init_x = jnp.ones((batch_size, seq_len, in_dim)) if dataset_version == "sequential" else jnp.ones((batch_size, jnp.sqrt(seq_len), jnp.sqrt(seq_len)))
+    init_x = jnp.ones((batch_size, seq_len, in_dim), dtype=dtype) if dataset_version == "sequential" else jnp.ones((batch_size, jnp.sqrt(seq_len), jnp.sqrt(seq_len)))
 
     model = model_cls(training=True)
     if model.padded: 
-        init_x = (init_x, jnp.ones((batch_size, 1)))  # add dummy mask for initialization if model expects padding mask
+        init_x = (init_x, jnp.ones((batch_size, 1), dtype=dtype))  # add dummy mask for initialization if model expects padding mask
     key, pkey, do_key = jax.random.split(key, 3)
     params = model.init({'params': pkey, 'dropout': do_key}, init_x)['params']
+    if dtype != jnp.float32:
+        params = jax.tree_map(lambda x: x.astype(dtype) if x.dtype == jnp.float32 else x, params)
     return model, params
 
 
-def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len, batch_size, wd=0.05):
+def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len, batch_size, wd=0.05, dtype=jnp.float32):
     
     """Creates initial `TrainState`."""
-    model, params = init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size)
+    model, params = init_model(key, model_cls, dataset_version, in_dim, seq_len, batch_size, dtype=dtype)
     
     # Debugging: Print parameter structure
     print("Initialized parameter structure:", jax.tree_util.tree_map(jnp.shape, params))

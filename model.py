@@ -322,11 +322,15 @@ def mich_fft_k(input, K):
     # print(f'{K.shape=}')
     d_max = K.shape[-1]
     sim_len = input.shape[-1]
-    input_fft = jnp.fft.rfft(jnp.pad(input, (0, d_max)))
-    K_fft = jnp.fft.rfft(jnp.pad(K, (0, sim_len)))
+
+    # Cast to float32 for FFT operations, then cast back
+    input_dtype = input.dtype
+
+    input_fft = jnp.fft.rfft(jnp.pad(input.astype(jnp.float32), (0, d_max)))
+    K_fft = jnp.fft.rfft(jnp.pad(K.astype(jnp.float32), (0, sim_len)))
     I_fft = K_fft * input_fft
     I = jnp.fft.irfft(I_fft)[:sim_len]
-    return I
+    return I.astype(input_dtype)
 
 j_mich_fft_k = jax.jit(mich_fft_k)
 vj_mich_fft_k = jax.vmap(j_mich_fft_k, in_axes=(0, 0))
@@ -527,8 +531,8 @@ class HeinsenMinGeneralGRULayer(nn.Module):
         def softplus(x):
             return jnp.log(1 + jnp.exp(x))
         def safe_softplus(x):
-            x_safe = jnp.where(x > 10, 0, x)
-            return jnp.where(x > 10, x, softplus(x_safe))
+            x_safe = jnp.where(x > 7, 0, x)
+            return jnp.where(x > 7, x, softplus(x_safe))
         def log_g(x):
             '''
             if x == -0.5, doing log(x+0.5) will result in -inf, so we need to add a small constant to avoid this
@@ -761,6 +765,9 @@ class RNN_General_Backbone(nn.Module):
 
             # ========== CONVOLUTION BLOCK ==========
             if self.enable_conv == True:
+                # if self.conv_ln:
+                #     x = nn.LayerNorm(name=f'LayerNormConv_{i}')(x) # normalize the output of the convolution layer
+
                 if self.enable_monitoring:
                     layer_monitor['conv_input'] = x
                     
@@ -811,6 +818,9 @@ class RNN_General_Backbone(nn.Module):
             
             # ========== RECURRENT BLOCK ==========
             if self.enable_rec == True:
+                # if self.rec_ln:
+                #     x = nn.LayerNorm(name=f'LayerNormRec_{i}')(x)
+
                 if self.enable_monitoring:
                     layer_monitor['rec_input'] = x
 
@@ -898,7 +908,7 @@ class RNN_General_Backbone(nn.Module):
                     layer_monitor['layer_skip_output'] = x
 
             # ========== POST-NORMALIZATION ==========
-            if self.postnorm: 
+            if self.postnorm: # and not i == self.n_layers - 1:  
                 x = nn.LayerNorm(name=f'LayerNormPost_{i}')(x)
                 if self.enable_monitoring:
                     layer_monitor['postnorm_output'] = x
