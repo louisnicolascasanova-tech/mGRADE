@@ -15,7 +15,7 @@ import yaml
 from typing import Union, Callable, Tuple, Iterator, List, Optional
 from pathlib import Path
 from flax.linen import one_hot
-from lra import IMDB, AAN, ListOps, PathFinder
+from .lra import IMDB, AAN, ListOps, PathFinder
 
 import urllib.request
 import tarfile

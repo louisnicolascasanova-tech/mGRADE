@@ -11,8 +11,7 @@ from tqdm import tqdm
 from flax.traverse_util import flatten_dict, unflatten_dict
 import wandb
 
-from utils import prep_batch
-from custom_logging import LoggingConfig, log_training_batch
+from utils import prep_batch, LoggingConfig, log_training_batch
 
 
 def clip_gradients_elementwise(grads, min_val=-1.0, max_val=1.0):
@@ -301,7 +300,7 @@ def run_epoch(state, model_cls, train_dl, key, reg_factor, kernel_size,
 
     # Compute epoch-level model behavior metrics using new logging system
     if log_model_behavior and len(all_predictions) > 0:
-        from custom_logging import log_classification_metrics
+        from utils import log_classification_metrics
         epoch_metrics = log_classification_metrics(
             all_predictions, all_targets, all_confidences,
             split_name="train_epoch", config=logging_config

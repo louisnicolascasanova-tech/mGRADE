@@ -14,7 +14,7 @@ from PIL import Image  # Only used for Pathfinder
 from datasets import DatasetDict, Value, load_dataset
 from tqdm import tqdm
 
-from base import default_data_path, SequenceDataset, ImageResolutionSequenceDataset
+from .base import default_data_path, SequenceDataset, ImageResolutionSequenceDataset
 
 
 class IMDB(SequenceDataset):

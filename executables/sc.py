@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 import torchaudio
 
-from base import default_data_path, ImageResolutionSequenceDataset, ResolutionSequenceDataset, SequenceDataset
+from utils.base import default_data_path, ImageResolutionSequenceDataset, ResolutionSequenceDataset, SequenceDataset
 
 def pad(channel, maxlen):
     channel = torch.tensor(channel)

@@ -100,7 +100,7 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim,
 
     # Compute and log classification metrics using new logging system
     if log_classification_report and len(all_predictions) > 0:
-        from custom_logging import log_classification_metrics
+        from utils import log_classification_metrics
         eval_metrics = log_classification_metrics(
             all_predictions, all_targets, all_confidences, split_name=split_name
         )

@@ -1,6 +1,6 @@
 """
 Utils package for Den-minGRU project.
-Contains data loading utilities and helper functions.
+Contains data loading utilities, logging utilities, and helper functions.
 """
 
 from .data import (
@@ -38,6 +38,24 @@ from .data import (
     DEFAULT_CACHE_DIR_ROOT,
 )
 
+from .logging import (
+    # Logging Configuration
+    LoggingConfig,
+
+    # Logging Functions
+    log_training_batch,
+    log_classification_metrics,
+    log_gradient_histograms,
+    log_network_dynamics,
+    log_monitor_data,
+    log_parameter_matrices,
+    log_batch_metrics,
+
+    # Helper Functions
+    create_histogram_and_stats,
+    create_confusion_matrix_plot,
+)
+
 __all__ = [
     # Stratified Sampling
     'StratifiedBatchSampler',
@@ -71,4 +89,18 @@ __all__ = [
     # Constants
     'PX',
     'DEFAULT_CACHE_DIR_ROOT',
+
+    # Logging Configuration
+    'LoggingConfig',
+
+    # Logging Functions
+    'log_training_batch',
+    'log_classification_metrics',
+    'log_gradient_histograms',
+    'log_network_dynamics',
+    'log_monitor_data',
+    'log_parameter_matrices',
+    'log_batch_metrics',
+    'create_histogram_and_stats',
+    'create_confusion_matrix_plot',
 ]
