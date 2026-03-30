@@ -16,6 +16,7 @@ from utils import create_mnist_classification_dataset, create_cifar_gs_classific
         create_lra_aan_classification_dataset, \
         prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories, \
         compute_class_weights, create_speechcommands35_classification_dataset, create_uea_classification_dataset
+from utils_stratified import create_lra_pathx_classification_dataset_stratified
 from plots import plot_dynamics
 
 from model import BatchRNN_General, RNN_General_Retrieval_Backbone
@@ -110,7 +111,12 @@ def main(args=None):
         batch = next(iter(testloader))
         batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM) # batch_x = (inputs, lengths)
     elif args.dataset in ['path', 'pathx']:
-        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=args.seed)
+        # Check if stratified sampling is requested for PathX
+        if args.dataset == 'pathx' and getattr(args, 'stratified_sampling', False):
+            print("[*] Using STRATIFIED sampling for PathX (balanced batches)")
+            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = create_lra_pathx_classification_dataset_stratified(bsz=args.batch_size, seed=args.seed)
+        else:
+            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=args.seed)
         batch = next(iter(testloader))
         batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM) # batch_x = inputs
 
