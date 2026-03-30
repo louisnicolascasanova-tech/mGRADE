@@ -1,32 +1,39 @@
+import argparse
 import jax
-import numpy as np
-import torch
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+print(jax.__version__)
+print(jax.devices())
+
 from jax import numpy as jnp
 from flax import linen as nn
 from flax.training import train_state, checkpoints
-import optax
+from functools import partial
+import numpy as np
+import yaml
+import wandb
 import matplotlib.pyplot as plt
+
+
 px = 1 / plt.rcParams['figure.dpi']
 jnp.set_printoptions(precision=3, suppress=True, linewidth=10000000)
 # jax.config.update("jax_enable_x64", False) # disable 64-bit
 # jax.config.update('jax_default_matmul_precision', 'float16')
-from utils import create_mnist_classification_dataset, create_cifar_gs_classification_dataset, write_config_yaml, \
-        create_lra_imdb_classification_dataset, create_lra_listops_classification_dataset, \
-        create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset, \
-        create_lra_aan_classification_dataset, \
-        prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories, \
-        compute_class_weights, create_speechcommands35_classification_dataset, create_uea_classification_dataset
-from utils_stratified import create_lra_pathx_classification_dataset_stratified
-from plots import plot_dynamics
 
+from utils import create_mnist_classification_dataset, \
+    create_cifar_gs_classification_dataset, \
+    create_lra_imdb_classification_dataset, \
+    create_lra_listops_classification_dataset, \
+    create_lra_path32_classification_dataset, \
+    create_lra_pathx_classification_dataset, \
+    create_lra_aan_classification_dataset, \
+    create_speechcommands35_classification_dataset
+from utils import prep_batch, setup_random_seeds, parse_experiment_config, \
+    generate_experiment_id, create_experiment_directories, \
+    compute_class_weights, write_config_yaml
 from model import BatchRNN_General, RNN_General_Retrieval_Backbone
-from training import create_train_state, run_epoch, validate, create_learning_rate_map
-from functools import partial
-
-import os
-import argparse
-import yaml
-import wandb
+from training import create_train_state, run_epoch, validate, \
+    create_learning_rate_map
 
 
 def load_config_with_dcls(config_file):
@@ -89,34 +96,41 @@ def main(args=None):
         'pathx': create_lra_pathx_classification_dataset,
         'aan': create_lra_aan_classification_dataset,
         'gsc': create_speechcommands35_classification_dataset,
-        # UEA datasets
-        'worms': lambda **kwargs: create_uea_classification_dataset('EigenWorms', **kwargs),
-        'scp1': lambda **kwargs: create_uea_classification_dataset('SelfRegulationSCP1', **kwargs),
-        'scp2': lambda **kwargs: create_uea_classification_dataset('SelfRegulationSCP2', **kwargs),
-        'heartbeat': lambda **kwargs: create_uea_classification_dataset('Heartbeat', **kwargs),
-        'motor': lambda **kwargs: create_uea_classification_dataset('MotorImagery', **kwargs),
-        'ethanol': lambda **kwargs: create_uea_classification_dataset('EthanolConcentration', **kwargs),
     }
     # recovering inputs for the tabulate function
-    if args.dataset in ['cifar', 'mnist', 'gsc', 'worms', 'scp1', 'scp2', 'heartbeat', 'motor', 'ethanol']:
+    if args.dataset in ['cifar', 'mnist', 'gsc']:
         if args.dataset in ['cifar', 'mnist']:
-            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data", dtype=dtype)
+            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, \
+                IN_DIM = dataset_fns[args.dataset](
+                    bsz=args.batch_size, root="data", dtype=dtype
+                    )
         elif args.dataset == 'gsc':
-            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data", dtype=dtype)
-        else:  # UEA datasets
-            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, data_dir="data_dir", dtype=dtype, seed=args.seed)
+            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, \
+                IN_DIM = dataset_fns[args.dataset](
+                    bsz=args.batch_size, root="data", dtype=dtype
+                    )
         batch_x, batch_y = next(iter(testloader))
     elif args.dataset in ['imdb', 'listops', 'aan']:
-        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
+        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, \
+            IN_DIM, _ = dataset_fns[args.dataset](
+                batch_size=args.batch_size, seed=args.seed
+                )
         batch = next(iter(testloader))
         batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM) # batch_x = (inputs, lengths)
     elif args.dataset in ['path', 'pathx']:
         # Check if stratified sampling is requested for PathX
-        if args.dataset == 'pathx' and getattr(args, 'stratified_sampling', False):
+        if args.dataset == 'pathx' and \
+            getattr(args, 'stratified_sampling', False):
             print("[*] Using STRATIFIED sampling for PathX (balanced batches)")
-            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = create_lra_pathx_classification_dataset_stratified(bsz=args.batch_size, seed=args.seed)
+            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, \
+                IN_DIM, _ = dataset_fns[args.dataset](
+                    bsz=args.batch_size, seed=args.seed, stratified=True
+                    )
         else:
-            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](bsz=args.batch_size, seed=args.seed)
+            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, \
+                IN_DIM, _ = dataset_fns[args.dataset](
+                    bsz=args.batch_size, seed=args.seed
+                    )
         batch = next(iter(testloader))
         batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM) # batch_x = inputs
 
@@ -129,44 +143,35 @@ def main(args=None):
     print(batch_y.dtype)
 
     
-    class_weights = compute_class_weights(trainloader, N_CLASSES) if args.dataset == 'listops' else None
+    class_weights = compute_class_weights(trainloader, N_CLASSES) \
+        if args.dataset == 'listops' else None
 
-    # if args.wavenet_dilation:
-    #     if args.dataset == 'cifar':
-    #         if args.kernel_size == 4:
-    #             dilation_boundary = 7+1
-    #         elif args.kernel_size == 8:
-    #             dilation_boundary = 6+1
-    #         elif args.kernel_size == 16:
-    #             dilation_boundary = 5+1
-    #         elif args.kernel_size == 32: 
-    #             dilation_boundary = 4+1
-    #         elif args.kernel_size == 64:
-    #             dilation_boundary = 3+1
-    #     elif args.dataset == 'mnist':
-    #         if args.kernel_size <= 32:
-    #             dilation_boundary = 4
-    #         elif args.kernel_size == 64:
-    #             dilation_boundary = 3
-    # else:
-    #     dilation_boundary = None
-
-    
     
     if args.dataset == 'aan':
         model_cls = partial(
             RNN_General_Retrieval_Backbone, 
-            n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
+            n_layers=args.n_layers, 
+            out_dim=N_CLASSES, 
+            hidden_dim=tuple(HIDDEN_DIM), 
+            do_rate=args.do_rate,
             enable_monitoring=getattr(args, 'enable_monitoring', False),
             encoder=getattr(args, 'encoder', True), 
             encoder_scale=getattr(args, 'encoder_scale', 1.0),
             encoder_bias=getattr(args, 'encoder_bias', True),
             layer_skip=args.layer_skip, element_skip=args.element_skip,
             # CONVOLUTION
-            enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
-            wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary, dilation_offset=args.dilation_offset,
+            enable_conv=args.enable_conv, 
+            conv_layer=args.conv, 
+            kernel_size=args.kernel_size, 
+            kernel_n_elems=args.kernel_n_elems,
+            wavenet_dilation=args.wavenet_dilation, 
+            dilation_schedule=args.dilation_schedule, 
+            dilation_boundary=args.dilation_boundary, 
+            dilation_offset=args.dilation_offset,
             constant_dilation=args.constant_dilation,
-            dcls_fft=True, dcls_type=args.delay_type, dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
+            dcls_fft=True, 
+            dcls_type=args.delay_type, 
+            dcls_kernel=args.delay_kernel, dcls_std=args.init_std,
             dcls_heterogeneous_weights=args.heterogeneous_weights, 
             dcls_heterogeneous_positions=args.heterogeneous_positions,
             dcls_heterogeneous_std=args.heterogeneous_std,
@@ -177,15 +182,21 @@ def main(args=None):
             rec_ln=getattr(args, 'rec_ln', False),
             rec_dense_out=getattr(args, 'rec_dense_out', False),
             rec_dense_out_act=getattr(args, 'rec_dense_out_act', False),
-            dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
+            dense_z_weight_init_scale= \
+                getattr(args, 'dense_z_weight_init_scale', 1.0), 
             dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
-            dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
+            dense_h_weight_init_scale= \
+                getattr(args, 'dense_h_weight_init_scale', 1.0),
             dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
             # CHANNEL MIXING
-            enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
+            enable_cm=args.enable_cm, 
+            channel_mixing=args.channel_mixing,
+            cm_act=args.cm_act, 
+            glu_type=args.glu_type,
             cm_ln=getattr(args, 'cm_ln', False),
             # COMPRESSION
-            latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
+            latent_dim=tuple(LATENT_DIM), 
+            comp_act=args.comp_act,
             postnorm=args.postnorm,
             decoder_bias=getattr(args, 'decoder_bias', True),
         )
@@ -194,23 +205,35 @@ def main(args=None):
         model_cls = partial(
             BatchRNN_General,
             padded=True if args.dataset in ['imdb', 'listops'] else False, 
-            n_layers=args.n_layers, out_dim=N_CLASSES, hidden_dim=tuple(HIDDEN_DIM), do_rate=args.do_rate,
+            n_layers=args.n_layers, 
+            out_dim=N_CLASSES, 
+            hidden_dim=tuple(HIDDEN_DIM), 
+            do_rate=args.do_rate,
             enable_monitoring=getattr(args, 'enable_monitoring', False),
             encoder=getattr(args, 'encoder', True), 
             encoder_scale=getattr(args, 'encoder_scale', 1.0),
             encoder_bias=getattr(args, 'encoder_bias', True),
             layer_skip=args.layer_skip, element_skip=args.element_skip,
             # CONVOLUTION
-            enable_conv=args.enable_conv, conv_layer=args.conv, kernel_size=args.kernel_size, kernel_n_elems=args.kernel_n_elems,
-            wavenet_dilation=args.wavenet_dilation, dilation_schedule=args.dilation_schedule, dilation_boundary=args.dilation_boundary,
-            dilation_offset=args.dilation_offset, constant_dilation=args.constant_dilation,
+            enable_conv=args.enable_conv, 
+            conv_layer=args.conv, 
+            kernel_size=args.kernel_size, 
+            kernel_n_elems=args.kernel_n_elems,
+            wavenet_dilation=args.wavenet_dilation, 
+            dilation_schedule=args.dilation_schedule, 
+            dilation_boundary=args.dilation_boundary,
+            dilation_offset=args.dilation_offset, 
+            constant_dilation=args.constant_dilation,
             dcls_fft=True, 
             dcls_type=getattr(args, 'delay_type', None), #args.delay_type, 
             dcls_kernel=getattr(args, 'delay_kernel', None), #args.delay_kernel, 
             dcls_std=getattr(args, 'init_std', None), # args.init_std,
-            dcls_heterogeneous_weights=getattr(args, 'heterogeneous_weights', None), #args.heterogeneous_weights, 
-            dcls_heterogeneous_positions=getattr(args, 'heterogeneous_positions', None), #args.heterogeneous_positions,
-            dcls_heterogeneous_std=getattr(args, 'heterogeneous_std', None), #args.heterogeneous_std,
+            dcls_heterogeneous_weights=\
+                getattr(args, 'heterogeneous_weights', None), #args.heterogeneous_weights, 
+            dcls_heterogeneous_positions=\
+                getattr(args, 'heterogeneous_positions', None), #args.heterogeneous_positions,
+            dcls_heterogeneous_std=\
+                getattr(args, 'heterogeneous_std', None), #args.heterogeneous_std,
             weight_init_scale=getattr(args, 'weight_init_scale', 1.0),
             conv_ln=getattr(args, 'conv_ln', False),  # whether to apply LayerNorm before the convolution layer
             # RECURRENT
@@ -218,12 +241,17 @@ def main(args=None):
             rec_ln=getattr(args, 'rec_ln', False),
             rec_dense_out=getattr(args, 'rec_dense_out', False),
             rec_dense_out_act=getattr(args, 'rec_dense_out_act', False),
-            dense_z_weight_init_scale=getattr(args, 'dense_z_weight_init_scale', 1.0), 
+            dense_z_weight_init_scale=\
+                getattr(args, 'dense_z_weight_init_scale', 1.0), 
             dense_z_bias_init=getattr(args, 'dense_z_bias_init', 'zero'),
-            dense_h_weight_init_scale=getattr(args, 'dense_h_weight_init_scale', 1.0),
+            dense_h_weight_init_scale=\
+                getattr(args, 'dense_h_weight_init_scale', 1.0),
             dense_h_bias_init=getattr(args, 'dense_h_bias_init', 'zero'),
             # CHANNEL MIXING
-            enable_cm=args.enable_cm, channel_mixing=args.channel_mixing, cm_act=args.cm_act, glu_type=args.glu_type,
+            enable_cm=args.enable_cm, 
+            channel_mixing=args.channel_mixing, 
+            cm_act=args.cm_act, 
+            glu_type=args.glu_type,
             cm_ln=getattr(args, 'cm_ln', False),
             # COMPRESSION
             latent_dim=tuple(LATENT_DIM), comp_act=args.comp_act,
@@ -234,14 +262,19 @@ def main(args=None):
     # model_mingru = BatchRNN(HIDDEN_DIM, 10, args.n_layers, recurrent_layer=minGRULayer)
     steps_per_epoch = len(trainloader) 
     lr_map, lr_fn = create_learning_rate_map(args, steps_per_epoch)
-    sim_args = {'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 'batch_size':args.batch_size, 'wd':args.weight_decay, 'dtype': dtype}
+    sim_args = {
+        'key':key, 'model_cls': model_cls, 'lr_map':lr_map, 
+        'dataset_version':'sequential', 'in_dim': IN_DIM, 'seq_len': SEQ_LENGTH, 
+        'batch_size':args.batch_size, 'wd':args.weight_decay, 'dtype': dtype}
     state, n_params, _ = create_train_state(**sim_args)
     
     # Load checkpoint if resume_from is provided
     start_epoch = 0
     if hasattr(args, 'resume_from') and args.resume_from is not None:
         print(f"Loading checkpoint from {args.resume_from}")
-        restored_state = checkpoints.restore_checkpoint(ckpt_dir=args.resume_from, target=state)
+        restored_state = checkpoints.restore_checkpoint(
+            ckpt_dir=args.resume_from, target=state
+        )
         if restored_state is not None:
             state = restored_state
             start_epoch = int(state.step // len(trainloader))
@@ -276,7 +309,8 @@ def main(args=None):
 
     # Generate experiment ID and create directories
     base_id = generate_experiment_id(args, HIDDEN_DIM, LATENT_DIM, SEED)
-    id_sim, CKPT_DIR, WU_DIR, RESULT_DIR, PLT_DIR = create_experiment_directories(base_id)
+    id_sim, CKPT_DIR, WU_DIR, RESULT_DIR, PLT_DIR = \
+        create_experiment_directories(base_id)
 
     bu_dir = os.path.join(CKPT_DIR, "Backup")    
     # Create directories
@@ -314,38 +348,55 @@ def main(args=None):
 
     if hasattr(args, 'resume_from') and args.resume_from is not None:
         if args.dataset != 'imdb':
-            val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") 
+            val_loss, val_acc, val_metrics = validate(
+                state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                log_classification_report=\
+                    getattr(args, 'log_model_behavior', True), 
+                split_name="val") 
         else: 
-            val_loss, val_acc, val_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") # TODO: create a val loader for imdb
+            val_loss, val_acc, val_metrics = validate(
+                state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                log_classification_report=\
+                    getattr(args, 'log_model_behavior', True), 
+                    split_name="val") # TODO: create a val loader for imdb
         print(f"Resumed model validation | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
 
     for epoch in range(start_epoch, args.n_epochs):
         key, subkey = jax.random.split(key) # not used in run_epoch (TODO: remove?)
         
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
-            run_epoch(state, model_cls, trainloader, subkey, reg_factor=args.reg_factor, kernel_size=args.kernel_size,
-                        lim_batch=None, keys_to_track=keys_to_track, inner_keys_to_track=inner_keys_to_track,
+            run_epoch(state, model_cls, trainloader, subkey, 
+                        reg_factor=args.reg_factor, 
+                        kernel_size=args.kernel_size,
+                        lim_batch=None, 
+                        keys_to_track=keys_to_track, 
+                        inner_keys_to_track=inner_keys_to_track,
                         lr_fn=lr_fn, 
                         wandb_gradients=getattr(args, 'wandb_gradients', False),
                         wandb_states=getattr(args, 'wandb_states', False), 
                         wandb_matrices=getattr(args, 'wandb_matrices', False),
-                        in_dim=IN_DIM, seq_len=SEQ_LENGTH,
+                        in_dim=IN_DIM, 
+                        seq_len=SEQ_LENGTH,
                         grad_clip_norm=args.grad_clip_norm,
-                        log_model_behavior=args.log_model_behavior, epoch_num=epoch,
-                        class_weights=class_weights, dataset=args.dataset)
+                        log_model_behavior=args.log_model_behavior, 
+                        epoch_num=epoch,
+                        class_weights=class_weights, 
+                        dataset=args.dataset)
         aux_dict_training.append(aux_dict_epoch)
         
         if break_flag:
             break
         
         if args.dataset != 'imdb':
-            val_loss, val_acc, val_metrics = validate(state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") 
+            val_loss, val_acc, val_metrics = validate(
+                state, model_cls, val_loader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                log_classification_report=\
+                    getattr(args, 'log_model_behavior', True), split_name="val") 
         else: 
-            val_loss, val_acc, val_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                        log_classification_report=getattr(args, 'log_model_behavior', True), split_name="val") # TODO: create a val loader for imdb
+            val_loss, val_acc, val_metrics = validate(
+                state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                log_classification_report=\
+                    getattr(args, 'log_model_behavior', True), split_name="val") # TODO: create a val loader for imdb
         
         if val_acc > best_val_acc + improvement: 
             patience = 0
@@ -365,20 +416,27 @@ def main(args=None):
             elif args.dataset == 'pathx':
                 if best_val_acc > 0.93: improvement = 0.002 # 0.2%
                 elif best_val_acc > 0.88: improvement = 0.005 # 0.5%
-            elif args.dataset == 'imdb' or args.dataset == 'aan' or args.dataset == 'gsc':
+            elif args.dataset == 'imdb' or args.dataset == 'aan' \
+                or args.dataset == 'gsc':
                 if best_val_acc > 0.83: improvement = 0.001 # 0.1%
 
 
 
             if args.dataset != 'imdb':
-                test_loss, test_acc, test_metrics = validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
-                                                            log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test") # if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test")
+                test_loss, test_acc, test_metrics = validate(
+                    state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, 
+                    log_classification_report=\
+                        getattr(args, 'log_model_behavior', True),
+                    split_name="test") # if args.dataset != 'imdb' else validate(state, model_cls, testloader, SEQ_LENGTH, IN_DIM, N_CLASSES, log_classification_report=getattr(args, 'log_model_behavior', True), split_name="test")
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}% | test_loss: {test_loss:.4f} | test_acc: {test_acc*100:.2f}%")
             else:
                 print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
             
             print(f"Saving the model at epoch {epoch}, in directory {CKPT_DIR}")
-            checkpoints.save_checkpoint(ckpt_dir=CKPT_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
+            checkpoints.save_checkpoint(
+                ckpt_dir=CKPT_DIR, target=state, step=state.step, 
+                overwrite=True, async_manager=async_manager
+            )
 
         else: 
             print(f"Epoch {epoch} | train_loss: {train_loss:.4f} | train_acc: {train_acc*100:.2f}% | val_loss: {val_loss:.4f} | val_acc: {val_acc*100:.2f}%")
@@ -388,7 +446,8 @@ def main(args=None):
             if patience >= lim_patience and best_val_acc < 0.45:
                 print(f"Early stopping at epoch {epoch} due to low validation accuracy ({best_val_acc:.2f}) and patience limit reached ({patience}/{lim_patience})")
                 break
-            if epoch > 10 and patience >= 3 and val_acc < 0.55 and best_val_acc > 0.6:
+            if epoch > 10 and patience >= 3 and val_acc < 0.55 \
+                and best_val_acc > 0.6:
                 print(f"Early stopping at epoch {epoch} due to low validation accuracy ({val_acc:.2f}, best: {best_val_acc:.2f}) and patience limit reached ({patience}/{lim_patience})")
                 break
             #checkpoints.save_checkpoint(ckpt_dir=bu_dir, target=state, step=state.step, overwrite=False, async_manager=async_manager)
@@ -430,12 +489,18 @@ def main(args=None):
                 print(state.params['DCLSLayer_0']['weights'].dtype)
                 print(state.params['DCLSLayer_0']['std'].dtype)
             else:
-                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['positions'])
-                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['weights'])
-                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']['std'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']\
+                        ['positions'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']\
+                        ['weights'])
+                print(state.params['VmapRNN_General_Backbone_0']['DCLSLayer_0']\
+                        ['std'])
         if epoch == args.n_epochs*args.warmup_frac: 
             print("Saving the warmed up model")
-            checkpoints.save_checkpoint(ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, async_manager=async_manager)
+            checkpoints.save_checkpoint(
+                ckpt_dir=WU_DIR, target=state, step=state.step, overwrite=True, 
+                async_manager=async_manager
+            )
         
         if args.dataset == 'imdb' and val_loss > 2*best_val_acc_loss:
             if ovf_count > 5:
@@ -477,19 +542,27 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
     parser.add_argument("--dataset", type=str, default="mnist",
-                        choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan', 'gsc',
-                                'worms', 'scp1', 'scp2', 'heartbeat', 'motor', 'ethanol'],
+                        choices=['mnist', 'cifar', 'imdb', 'listops', 'path', \
+                                    'pathx', 'aan', 'gsc'],
                         help="Dataset to use for training")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
-    parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
-    parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")
-    parser.add_argument("--file_nb", type=int, default=0, help="File number to load the configuration from")
-    parser.add_argument("--sweep", action="store_true", help="Run in sweep mode using wandb sweep configuration")
-    parser.add_argument("--sim_name", type=str, default="gen", help="Simulation name for wandb")
-    parser.add_argument("--resume_from", type=str, default=None, help="Path to checkpoint directory to resume training from")
+    parser.add_argument("--conv_mode", type=str, default="dcls", 
+                        choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', \
+                                    'tcn_lerf', 'tcn_eerf'], 
+                        help="Convolution mode: dcls, causal_eerf, or causal_lerf")
+    parser.add_argument("--seed", type=int, default=None, 
+                        help="Seed to use for random number generation")
+    parser.add_argument("--file_nb", type=int, default=0, 
+                        help="File number to load the configuration from")
+    parser.add_argument("--sweep", action="store_true", 
+                        help="Run in sweep mode using wandb sweep configuration")
+    parser.add_argument("--sim_name", type=str, default="gen", 
+                        help="Simulation name for wandb")
+    parser.add_argument("--resume_from", type=str, default=None, 
+                        help="Path to checkpoint directory to resume training from")
     args_cli = parser.parse_args()
 
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(args_cli.gpu)
+    #os.environ["CUDA_VISIBLE_DEVICES"] = str(args_cli.gpu)
     
     # check if the wandb_api_key.txt file exists
     if not os.path.exists("wandb_api_key.txt"):
@@ -544,6 +617,7 @@ if __name__ == "__main__":
         if args_cli.seed is not None:
             args.seed = args_cli.seed
         args.resume_from = args_cli.resume_from
+        args.sim_name = args_cli.sim_name
         
         # set jax XLA_PYTHON_CLIENT_MEM_FRACTION=.XX
         os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = f"{args.mem_frac}"

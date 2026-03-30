@@ -3,7 +3,7 @@ import jax.numpy as jnp
 import torch
 import torchaudio
 import torchvision
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Sampler
 import numpy as np
 from torchvision import transforms
 import matplotlib.pyplot as plt
@@ -12,7 +12,7 @@ from sklearn.metrics import confusion_matrix, classification_report
 import os
 import pandas as pd
 import yaml
-from typing import Union, Callable, Tuple
+from typing import Union, Callable, Tuple, Iterator, List, Optional
 from pathlib import Path
 from flax.linen import one_hot
 from lra import IMDB, AAN, ListOps, PathFinder
@@ -21,15 +21,170 @@ import urllib.request
 import tarfile
 from pathlib import Path
 import random
-from typing import Tuple, Optional, List
-import numpy as np
 
 PX = 1/plt.rcParams['figure.dpi']
 DEFAULT_CACHE_DIR_ROOT = Path("./cache_dir/")
 
 
+# ============================================================================
+# Stratified Sampling Utilities
+# ============================================================================
 
-# WARNING: this code is from QSSM project and won't be updated 
+class StratifiedBatchSampler(Sampler):
+    """
+    Sampler that ensures each batch has balanced class representation.
+
+    For a binary classification task with batch_size=8, each batch will have
+    exactly 4 samples from class 0 and 4 samples from class 1.
+
+    Args:
+        labels: Array or list of labels for all samples in the dataset
+        batch_size: Size of each batch
+        shuffle: Whether to shuffle within each class
+        seed: Random seed for reproducibility
+        drop_last: Whether to drop the last incomplete batch
+    """
+
+    def __init__(self, labels, batch_size: int, shuffle: bool = True,
+                 seed: int = None, drop_last: bool = True):
+        self.labels = np.array(labels)
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.drop_last = drop_last
+        self.seed = seed
+
+        # Get indices for each class
+        self.class_indices = {}
+        unique_classes = np.unique(self.labels)
+        for cls in unique_classes:
+            self.class_indices[cls] = np.where(self.labels == cls)[0].tolist()
+
+        self.num_classes = len(unique_classes)
+
+        # Calculate samples per class per batch
+        if self.batch_size % self.num_classes != 0:
+            print(f"Warning: batch_size ({self.batch_size}) is not evenly divisible by "
+                  f"num_classes ({self.num_classes}). Class balance may not be exact.")
+
+        self.samples_per_class = self.batch_size // self.num_classes
+
+        # Calculate number of batches
+        min_class_size = min(len(indices) for indices in self.class_indices.values())
+        self.num_batches = min_class_size // self.samples_per_class
+
+        if self.seed is not None:
+            self.rng = np.random.RandomState(self.seed)
+        else:
+            self.rng = np.random.RandomState()
+
+    def __iter__(self) -> Iterator[List[int]]:
+        # Shuffle indices within each class
+        class_iters = {}
+        for cls, indices in self.class_indices.items():
+            indices_copy = indices.copy()
+            if self.shuffle:
+                self.rng.shuffle(indices_copy)
+            class_iters[cls] = iter(indices_copy)
+
+        # Generate batches
+        for _ in range(self.num_batches):
+            batch = []
+            for cls in sorted(self.class_indices.keys()):
+                # Get samples_per_class samples from this class
+                for _ in range(self.samples_per_class):
+                    try:
+                        batch.append(next(class_iters[cls]))
+                    except StopIteration:
+                        if not self.drop_last:
+                            # Try to fill from other classes if available
+                            continue
+                        else:
+                            return
+
+            # Shuffle samples within the batch to avoid class ordering
+            if self.shuffle:
+                self.rng.shuffle(batch)
+
+            yield batch
+
+    def __len__(self) -> int:
+        return self.num_batches
+
+
+def create_stratified_dataloader(dataset, labels, batch_size: int,
+                                 shuffle: bool = True, seed: int = None,
+                                 drop_last: bool = True, num_workers: int = 0):
+    """
+    Create a DataLoader with stratified batch sampling.
+
+    Args:
+        dataset: PyTorch Dataset object
+        labels: Array or list of labels for all samples in the dataset
+        batch_size: Size of each batch
+        shuffle: Whether to shuffle samples within each class
+        seed: Random seed for reproducibility
+        drop_last: Whether to drop the last incomplete batch
+        num_workers: Number of worker processes for data loading
+
+    Returns:
+        DataLoader with stratified sampling
+    """
+    sampler = StratifiedBatchSampler(
+        labels=labels,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        seed=seed,
+        drop_last=drop_last
+    )
+
+    # When using a custom batch sampler, we need to set batch_size=1
+    # and use batch_sampler parameter
+    return torch.utils.data.DataLoader(
+        dataset=dataset,
+        batch_sampler=sampler,
+        num_workers=num_workers
+    )
+
+
+def extract_labels_from_dataset(dataset):
+    """
+    Extract all labels from a PyTorch dataset.
+
+    Args:
+        dataset: PyTorch Dataset or Subset
+
+    Returns:
+        numpy array of labels
+    """
+    # Handle different dataset types
+    if hasattr(dataset, 'tensors'):
+        # TensorDataset
+        return dataset.tensors[1].numpy()
+    elif hasattr(dataset, 'targets'):
+        # Common datasets like MNIST, CIFAR
+        if isinstance(dataset.targets, torch.Tensor):
+            return dataset.targets.numpy()
+        else:
+            return np.array(dataset.targets)
+    elif hasattr(dataset, 'dataset'):
+        # Subset
+        labels = extract_labels_from_dataset(dataset.dataset)
+        return labels[dataset.indices]
+    else:
+        # Fallback: iterate through dataset
+        print("Warning: Extracting labels by iterating through dataset. This may be slow.")
+        labels = []
+        for i in range(len(dataset)):
+            _, label = dataset[i]
+            labels.append(label)
+        return np.array(labels)
+
+
+# ============================================================================
+# Dataset Creation Functions
+# ============================================================================
+
+# WARNING: this code is from QSSM project and won't be updated
 def create_mnist_classification_dataset(bsz=128, root="./data", version="sequential"):
     print("[*] Generating MNIST Classification Dataset...")
     assert version in ["sequential", "row"], "Invalid version for MNIST dataset"
@@ -518,11 +673,27 @@ def create_lra_path32_classification_dataset(cache_dir: Union[str, Path] = DEFAU
 
 def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
 											bsz: int = 50,
-											seed: int = 42):
+											seed: int = 42,
+											stratified: bool = False):
 	"""
-	See abstract template.
+	Create PathX dataset with optional stratified batch sampling.
+
+	Args:
+		cache_dir: Directory for caching processed data
+		bsz: Batch size (should be even for binary classification with stratified sampling)
+		seed: Random seed for reproducibility
+		stratified: If True, uses stratified sampling to ensure each batch has exactly 50% of each class
+
+	Returns:
+		trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 	"""
-	print("[*] Generating LRA-PathX Classification Dataset")
+	if stratified:
+		print("[*] Generating LRA-PathX Classification Dataset (STRATIFIED SAMPLING)")
+		if bsz % 2 != 0:
+			print(f"Warning: batch_size ({bsz}) is odd. For perfect 50/50 split, use even batch size.")
+	else:
+		print("[*] Generating LRA-PathX Classification Dataset")
+
 	name = 'pathfinder'
 	resolution = 128
 	dir_name = f'./raw_datasets/lra_release/lra_release/pathfinder{resolution}'
@@ -531,9 +702,37 @@ def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAUL
 	dataset_obj.cache_dir = Path(cache_dir) / name
 	dataset_obj.setup()
 
-	trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
-	val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
-	tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+	if stratified:
+		# Extract datasets and labels for stratified sampling
+		train_dataset = dataset_obj.dataset_train
+		val_dataset = dataset_obj.dataset_val
+		test_dataset = dataset_obj.dataset_test
+
+		train_labels = train_dataset.tensors[1].numpy()
+		val_labels = val_dataset.tensors[1].numpy()
+		test_labels = test_dataset.tensors[1].numpy()
+
+		# Create stratified dataloaders
+		trn_loader = create_stratified_dataloader(
+			train_dataset, train_labels,
+			batch_size=bsz, shuffle=True, seed=seed, drop_last=True
+		)
+		val_loader = create_stratified_dataloader(
+			val_dataset, val_labels,
+			batch_size=bsz, shuffle=False, seed=seed, drop_last=False
+		)
+		tst_loader = create_stratified_dataloader(
+			test_dataset, test_labels,
+			batch_size=bsz, shuffle=False, seed=seed, drop_last=False
+		)
+
+		print(f"  Stratified batches created: Train={len(trn_loader)}, Val={len(val_loader)}, Test={len(tst_loader)}")
+		print(f"  Each batch has exactly {bsz//2} samples from each class")
+	else:
+		# Use standard dataloaders
+		trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
+		val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+		tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
 
 	N_CLASSES = dataset_obj.d_output
 	SEQ_LENGTH = dataset_obj.dataset_train.tensors[0].shape[1]
