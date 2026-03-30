@@ -32,7 +32,9 @@ def eval_model(state, model, images, labels, out_dim, dtype=jnp.float32):
         mean_confidence: Mean prediction confidence
     """
     def loss_fn(params):
-        net_dyn, logits, _ = model.apply({'params': params}, images.astype(dtype))
+        net_dyn, logits, _ = model.apply(
+            {'params': params}, images.astype(dtype)
+        )
         one_hot = jax.nn.one_hot(labels, out_dim, dtype=jnp.float32)
         loss = jnp.mean(optax.softmax_cross_entropy(
             logits=logits.astype(jnp.float32), labels=one_hot)

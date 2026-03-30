@@ -28,7 +28,9 @@ def inf_model(state, model, images, labels, out_dim, dtype=jnp.float32):
         ndh: Network dynamics history (for detailed analysis)
     """
     def loss_fn(params):
-        ndh, logits, monitor = model.apply({'params': params}, images.astype(dtype))
+        ndh, logits, monitor = model.apply(
+            {'params': params}, images.astype(dtype)
+        )
         one_hot = jax.nn.one_hot(labels, out_dim, dtype=jnp.float32)
         loss = jnp.mean(optax.softmax_cross_entropy(
             logits=logits.astype(jnp.float32), labels=one_hot)

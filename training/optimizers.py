@@ -82,7 +82,8 @@ def create_learning_rate_map(args, steps_per_epoch):
     default_bias_optim = getattr(args, 'bias_optim', 'adam')
     mlp_bias_optim = getattr(args, 'mlp_bias_optim', default_bias_optim)
     gru_bias_optim = getattr(args, 'gru_bias_optim', default_bias_optim)
-    postnorm_bias_optim = getattr(args, 'postnorm_bias_optim', default_bias_optim)
+    postnorm_bias_optim = \
+        getattr(args, 'postnorm_bias_optim', default_bias_optim)
 
     param_rules.extend([
         ('MLP', 'bias', mlp_bias_optim),
@@ -101,7 +102,8 @@ def create_learning_rate_map(args, steps_per_epoch):
             param_rules.append(('DCLSLayer', 'weights', 'none'))
 
         if args.train_positions:
-            dcls_positions_optim = getattr(args, 'dcls_positions_optim', 'adam_big')
+            dcls_positions_optim = \
+                getattr(args, 'dcls_positions_optim', 'adam_big')
             param_rules.append(('DCLSLayer', 'positions', dcls_positions_optim))
         else:
             param_rules.append(('DCLSLayer', 'positions', 'none'))
@@ -109,7 +111,8 @@ def create_learning_rate_map(args, steps_per_epoch):
     # Layer-specific scale optimization (only for layers that have scale)
     default_scale_optim = getattr(args, 'scale_optim', 'adam')
     mlp_scale_optim = getattr(args, 'mlp_scale_optim', default_scale_optim)
-    postnorm_scale_optim = getattr(args, 'postnorm_scale_optim', default_scale_optim)
+    postnorm_scale_optim = \
+        getattr(args, 'postnorm_scale_optim', default_scale_optim)
 
     param_rules.extend([
         ('MLP', 'scale', mlp_scale_optim),           # MLP LayerNorm scale
@@ -132,8 +135,10 @@ def create_learning_rate_map(args, steps_per_epoch):
         'adam': {'tx': optax.adam(lr_fn)},
         'adam_big': {'tx': optax.adam(lr_big_fn)},
         'adamw': {'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay)},
-        'adamw_big': {'tx': optax.adamw(lr_big_fn, weight_decay=args.weight_decay)},
-        'adamw_small': {'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay / 10)},
+        'adamw_big': \
+            {'tx': optax.adamw(lr_big_fn, weight_decay=args.weight_decay)},
+        'adamw_small': \
+            {'tx': optax.adamw(lr_fn, weight_decay=args.weight_decay / 10)},
         'param_rules': param_rules,  # Store rules for label_fn
         'layer_lr_fns': layer_lr_fns  # Store layer-specific learning rates
     }
@@ -142,9 +147,11 @@ def create_learning_rate_map(args, steps_per_epoch):
     if layer_lr_fns:
         for layer_idx, layer_lr_fn in layer_lr_fns.items():
             lr_map[f'adam_layer_{layer_idx}'] = {'tx': optax.adam(layer_lr_fn)}
-            lr_map[f'adamw_layer_{layer_idx}'] = {'tx': optax.adamw(layer_lr_fn, weight_decay=args.weight_decay)}
+            lr_map[f'adamw_layer_{layer_idx}'] = \
+                {'tx': optax.adamw(layer_lr_fn, weight_decay=args.weight_decay)}
 
-    print("Learning rate map optimizers:", {k: v for k, v in lr_map.items() if k != 'param_rules'})
+    print("Learning rate map optimizers:", \
+            {k: v for k, v in lr_map.items() if k != 'param_rules'})
     print(f"Parameter rules: {len(param_rules)} rules defined")
     return lr_map, lr_fn
 
@@ -211,7 +218,8 @@ def create_train_state(key, model_cls, lr_map, dataset_version, in_dim, seq_len,
     )
 
     # Debugging: Print parameter structure
-    print("Initialized parameter structure:", jax.tree_util.tree_map(jnp.shape, params))
+    print("Initialized parameter structure:", \
+            jax.tree_util.tree_map(jnp.shape, params))
 
     param_sizes = map_nested_fn(lambda k, param: param.size)(params)
     n_params = sum(jax.tree_util.tree_leaves(param_sizes))

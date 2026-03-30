@@ -38,7 +38,8 @@ def update_model(state, grads, kernel_size, grad_clip_norm=1.0):
     """
     # Apply gradient clipping
     grad_norm = optax.global_norm(grads)
-    clipped_grads = optax.clip_by_global_norm(grad_clip_norm).update(grads, None)[0]
+    clipped_grads = \
+        optax.clip_by_global_norm(grad_clip_norm).update(grads, None)[0]
     grad_norm_post_clip = optax.global_norm(clipped_grads)
 
     state = state.apply_gradients(grads=clipped_grads)
@@ -52,7 +53,8 @@ def update_model(state, grads, kernel_size, grad_clip_norm=1.0):
                 v = jnp.where(v > kernel_size, kernel_size, v)
             return v
         flat_params = flatten_dict(params, sep='/')
-        clipped_flat = {k: clip_fn(k.split('/'), v) for k, v in flat_params.items()}
+        clipped_flat = \
+            {k: clip_fn(k.split('/'), v) for k, v in flat_params.items()}
         return unflatten_dict(clipped_flat, sep='/')
 
     state = state.replace(params=clip_negative_positions(state.params))
@@ -126,7 +128,8 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights,
     return grads, loss, accuracy, aux_dict
 
 
-def apply_retrieval_model(state, model, x, y, reg_factor, do_key, dtype=jnp.float32):
+def apply_retrieval_model(state, model, x, y, reg_factor, do_key, 
+                            dtype=jnp.float32):
     """
     Apply model for retrieval tasks (e.g., AAN).
 
