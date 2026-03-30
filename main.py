@@ -15,7 +15,7 @@ from utils import create_mnist_classification_dataset, create_cifar_gs_classific
         create_lra_path32_classification_dataset, create_lra_pathx_classification_dataset, \
         create_lra_aan_classification_dataset, \
         prep_batch, setup_random_seeds, parse_experiment_config, generate_experiment_id, create_experiment_directories, \
-        compute_class_weights, create_speechcommands35_classification_dataset
+        compute_class_weights, create_speechcommands35_classification_dataset, create_uea_classification_dataset
 from plots import plot_dynamics
 
 from model import BatchRNN_General, RNN_General_Retrieval_Backbone
@@ -88,10 +88,22 @@ def main(args=None):
         'pathx': create_lra_pathx_classification_dataset,
         'aan': create_lra_aan_classification_dataset,
         'gsc': create_speechcommands35_classification_dataset,
+        # UEA datasets
+        'worms': lambda **kwargs: create_uea_classification_dataset('EigenWorms', **kwargs),
+        'scp1': lambda **kwargs: create_uea_classification_dataset('SelfRegulationSCP1', **kwargs),
+        'scp2': lambda **kwargs: create_uea_classification_dataset('SelfRegulationSCP2', **kwargs),
+        'heartbeat': lambda **kwargs: create_uea_classification_dataset('Heartbeat', **kwargs),
+        'motor': lambda **kwargs: create_uea_classification_dataset('MotorImagery', **kwargs),
+        'ethanol': lambda **kwargs: create_uea_classification_dataset('EthanolConcentration', **kwargs),
     }
     # recovering inputs for the tabulate function
-    if args.dataset in ['cifar', 'mnist', 'gsc']:
-        trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data", dtype=dtype)
+    if args.dataset in ['cifar', 'mnist', 'gsc', 'worms', 'scp1', 'scp2', 'heartbeat', 'motor', 'ethanol']:
+        if args.dataset in ['cifar', 'mnist']:
+            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data", dtype=dtype)
+        elif args.dataset == 'gsc':
+            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, root="data", dtype=dtype)
+        else:  # UEA datasets
+            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM = dataset_fns[args.dataset](bsz=args.batch_size, data_dir="data_dir", dtype=dtype, seed=args.seed)
         batch_x, batch_y = next(iter(testloader))
     elif args.dataset in ['imdb', 'listops', 'aan']:
         trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, IN_DIM, _ = dataset_fns[args.dataset](batch_size=args.batch_size, seed=args.seed)
@@ -458,7 +470,10 @@ def main(args=None):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train a GRU model")
-    parser.add_argument("--dataset", type=str, default="mnist", choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan', 'gsc'], help="Dataset version: mnist or cifar")
+    parser.add_argument("--dataset", type=str, default="mnist",
+                        choices=['mnist', 'cifar', 'imdb', 'listops', 'path', 'pathx', 'aan', 'gsc',
+                                'worms', 'scp1', 'scp2', 'heartbeat', 'motor', 'ethanol'],
+                        help="Dataset to use for training")
     parser.add_argument("--gpu", type=int, default=0, help="GPU to use")
     parser.add_argument("--conv_mode", type=str, default="dcls", choices=['dcls', 'rnn_eerf', 'rnn_lerf', 'vanilla', 'tcn_lerf', 'tcn_eerf'], help="Convolution mode: dcls, causal_eerf, or causal_lerf")
     parser.add_argument("--seed", type=int, default=None, help="Seed to use for random number generation")

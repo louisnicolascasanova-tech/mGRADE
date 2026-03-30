@@ -769,5 +769,96 @@ def create_speechcommands35_classification_dataset(
     test_loader = DataLoader(
         test_dataset, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=False
     )
-    
+
     return train_loader, val_loader, test_loader, N_CLASSES, SEQ_LENGTH, IN_DIM
+
+
+def create_uea_classification_dataset(dataset_name, bsz=128, data_dir="./data_dir", dtype=jnp.float32, seed=42):
+    """
+    Create PyTorch dataloaders for any UEA dataset.
+
+    Args:
+        dataset_name: Name of the UEA dataset (e.g., 'EigenWorms', 'Heartbeat', 'SCP1', 'SCP2', 'MotorImagery', 'Ethanol')
+        bsz: Batch size
+        data_dir: Root directory containing processed data
+        dtype: Data type for JAX arrays (float16 or float32)
+        seed: Random seed for reproducibility
+
+    Returns:
+        trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    """
+    import pickle
+
+    print(f"[*] Generating {dataset_name} Classification Dataset...")
+
+    # Load the processed data
+    dataset_path = Path(data_dir) / "processed" / "UEA" / dataset_name
+
+    if not dataset_path.exists():
+        raise FileNotFoundError(f"Dataset path not found: {dataset_path}")
+
+    with open(dataset_path / "data.pkl", "rb") as f:
+        data = pickle.load(f)
+    with open(dataset_path / "labels.pkl", "rb") as f:
+        labels = pickle.load(f)
+
+    # Convert to numpy arrays if needed
+    data = np.array(data)
+    labels = np.array(labels)
+
+    # Get dataset constants
+    N_SAMPLES, SEQ_LENGTH, IN_DIM = data.shape
+    N_CLASSES = len(np.unique(labels))
+
+    print(f"    Dataset size: {N_SAMPLES} samples")
+    print(f"    Sequence length: {SEQ_LENGTH}")
+    print(f"    Input dimension: {IN_DIM}")
+    print(f"    Number of classes: {N_CLASSES}")
+
+    # Create a simple Dataset class
+    class SimpleDataset(Dataset):
+        def __init__(self, data, labels):
+            self.data = data
+            self.labels = labels
+
+        def __len__(self):
+            return len(self.data)
+
+        def __getitem__(self, idx):
+            return self.data[idx], self.labels[idx]
+
+    # Split the dataset into train, val, test (70%, 15%, 15%)
+    n_train = int(N_SAMPLES * 0.7)
+    n_val = int(N_SAMPLES * 0.15)
+
+    # Shuffle indices with seed for reproducibility
+    np.random.seed(seed)
+    indices = np.random.permutation(N_SAMPLES)
+    train_idx = indices[:n_train]
+    val_idx = indices[n_train:n_train + n_val]
+    test_idx = indices[n_train + n_val:]
+
+    # Create datasets
+    train = SimpleDataset(data[train_idx], labels[train_idx])
+    val = SimpleDataset(data[val_idx], labels[val_idx])
+    test = SimpleDataset(data[test_idx], labels[test_idx])
+
+    def custom_collate_fn(batch):
+        transposed_data = list(zip(*batch))
+        labels = jnp.array(transposed_data[1])
+        sequences = jnp.array(transposed_data[0], dtype=dtype)
+
+        return sequences, labels
+
+    # Return data loaders, with the provided batch size
+    trainloader = DataLoader(
+        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+    )
+    valloader = DataLoader(
+        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+    )
+    testloader = DataLoader(
+        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+    )
+
+    return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
