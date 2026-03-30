@@ -1,0 +1,88 @@
+# This DCLS YAML implements: DCLS homP_fixedOnesW
+seed: 0
+mem_frac: 0.45
+n_epochs: 100
+batch_size: 32
+lr: 0.002
+lr_factors: [1, 1, 1, 1, 1, 1]  # Learning rate factors per layer (layer 0 gets 10x, layer 1 gets 8x, etc.)
+scheduler: True
+alpha_cosine: 0
+warmup_frac: 0.1
+weight_decay: 0.1
+bias_optim: adam
+scale_optim: adam
+# Layer-specific optimizer settings
+dcls_positions_optim: adam_big
+dcls_weights_optim: adamw
+mlp_kernel_optim: adamw
+gru_kernel_optim: adamw
+postnorm_scale_optim: adam
+mlp_scale_optim: adam
+mlp_bias_optim: adam
+gru_bias_optim: adam
+postnorm_bias_optim: adam
+n_layers: 6
+hidden_dim: 64
+# ENCODER
+encoder: True
+encoder_scale: 1.5 # changed from cfg 60
+encoder_bias: True
+# SKIP
+layer_skip: False
+element_skip: True
+# RECURRENT
+enable_rec: True
+rec_act: linear
+rec_ln: false
+dense_z_weight_init_scale: 1.  # CHANGED FROM cfg 60
+dense_z_bias_init: zero  # 'zero', 'ugi', 'constant'
+dense_h_weight_init_scale: 1.
+dense_h_bias_init: zero  # 'zero', 'ugi', 'constant', 'ubi'
+# CONVOLUTION
+enable_conv: False
+conv: ~ # 'dcls', 'conv', ~
+kernel_size: 64
+# LERF and EERF
+wavenet_dilation: False # False means LERF, True means EERF
+# LERF
+constant_dilation: ~ 
+# EERF
+dilation_schedule: ~ # 'clip', 'wrap', ~
+dilation_offset: ~
+dilation_boundary: ~
+# DCLS
+delay_type: 'axonal' # DCLS: 'synaptic', 'axonal'
+delay_kernel: 'gaussian' # DCLS: 'gaussian'
+init_std: 0.7 # DCLS
+kernel_n_elems: 8
+heterogeneous_weights: True 
+heterogeneous_positions: False 
+heterogeneous_std: False 
+train_weights: True 
+train_positions: True
+train_std: False
+weight_init_scale: 0.1
+# CHANNEL MIXING
+enable_cm: True
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'gelu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
+conv_ln: False
+# COMPRESSION
+latent_dim: ~
+comp_act: ~ # 'relu', 'gelu', 'linear'
+# NORMALIZATION
+postnorm: True
+# DECODER
+decoder_bias: True
+# REGULARIZATION
+do_rate: 0
+reg_factor: 0
+# Gradient clipping
+grad_clip_norm: 10
+# Logging
+log_model_behavior: True
+# Wandb gradients
+wandb_gradients: True
+wandb_states: True  # Enable state tracking for network dynamics
+wandb_matrices: True

@@ -1,0 +1,58 @@
+# This TCN EERF YAML implements: k=8, enable_rec=False, wavenet_dilation=True, dilation_schedule='clip', dilation_offset=0, dilation_boundary=8
+seed: 0
+mem_frac: 0.5
+n_epochs: 100
+batch_size: 32
+lr: 0.004
+scheduler: True
+alpha_cosine: 0
+warmup_frac: 0.5
+weight_decay: 0.1
+n_layers: 6
+hidden_dim: 32
+# ENCODER
+encoder: True
+# SKIP
+layer_skip: False
+element_skip: True
+# RECURRENT
+enable_rec: False
+rec_act: relu
+# CONVOLUTION
+enable_conv: True
+conv: 'conv' # 'dcls', 'conv', ~
+kernel_size: 32
+# LERF and EERF
+wavenet_dilation: True # False means LERF, True means EERF
+# LERF
+constant_dilation: ~ 
+# EERF
+dilation_schedule: 'clip' # 'clip', 'wrap', ~
+dilation_offset: 0
+dilation_boundary: 8 # depends on kernel_size: 4 -> 8, 8 -> 7, 16 -> 6, 32 -> 5
+# DCLS
+delay_type: ~ # DCLS: 'synaptic', 'axonal'
+delay_kernel: ~ # DCLS: 'gaussian'
+init_std: ~ # DCLS
+kernel_n_elems: ~  
+heterogeneous_weights: ~
+heterogeneous_positions: ~
+heterogeneous_std: ~ 
+train_weights: ~ 
+train_positions: ~
+train_std: ~
+# CHANNEL MIXING
+enable_cm: True
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'relu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
+# COMPRESSION
+latent_dim: ~
+comp_act: ~ # 'relu', 'gelu', 'linear'
+# NORMALIZATION
+postnorm: True
+# REGULARIZATION
+do_rate: 0
+reg_factor: 0
+# Wandb gradients
+wandb_gradients: False

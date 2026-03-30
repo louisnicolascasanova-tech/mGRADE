@@ -1,0 +1,62 @@
+# Debug IMDB DCLS config with gradient monitoring and clipping
+seed: 0
+mem_frac: 0.5
+n_epochs: 100
+batch_size: 32
+lr: 0.001  # Reduced from 0.004
+scheduler: True
+alpha_cosine: 0
+warmup_frac: 0.3  # Reduced warmup
+weight_decay: 0.01  # Reduced from 0.1
+n_layers: 6
+hidden_dim: 64  # Increased from 32
+# ENCODER
+encoder: True
+# SKIP
+layer_skip: False
+element_skip: True
+# RECURRENT
+enable_rec: True
+rec_act: relu
+# CONVOLUTION
+enable_conv: True
+conv: 'dcls' # 'dcls', 'conv', ~
+kernel_size: 256
+# LERF and EERF
+wavenet_dilation: False # False means LERF, True means EERF
+# LERF
+constant_dilation: ~ 
+# EERF
+dilation_schedule: ~ # 'clip', 'wrap', ~
+dilation_offset: ~
+dilation_boundary: ~
+# DCLS
+delay_type: 'axonal' # DCLS: 'synaptic', 'axonal'
+delay_kernel: 'gaussian' # DCLS: 'gaussian'
+init_std: 0.7 # DCLS
+kernel_n_elems: [8, 16] 
+heterogeneous_weights: True 
+heterogeneous_positions: False 
+heterogeneous_std: False 
+train_weights: True 
+train_positions: True
+train_std: False
+# CHANNEL MIXING
+enable_cm: True
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'relu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
+# COMPRESSION
+latent_dim: ~
+comp_act: ~ # 'relu', 'gelu', 'linear'
+# NORMALIZATION
+postnorm: True
+# REGULARIZATION
+do_rate: 0.1  # Added dropout
+reg_factor: 0
+# Gradient clipping
+grad_clip_norm: 1.0
+# Model behavior tracking
+log_model_behavior: True
+# Wandb gradients
+wandb_gradients: False

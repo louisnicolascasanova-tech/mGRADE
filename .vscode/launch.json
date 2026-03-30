@@ -1,0 +1,183 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CIFAR TCN EERF",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "imdb",
+                "--gpu", "1", 
+                "--conv_mode", "tcn_eerf",
+                "--file_nb", "0"
+            ]
+        },
+        {
+            "name": "LISTOPS MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "listops",
+                "--gpu", "0", 
+                "--conv_mode", "dcls",
+                "--file_nb", "0"
+            ]
+        },
+                {
+            "name": "AAN MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "aan",
+                "--gpu", "0", 
+                "--conv_mode", "dcls",
+                "--dcls_config", "6",
+                "--file_nb", "0"
+            ]
+        },
+        {
+            "name": "PATH MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "path",
+                "--gpu", "1", 
+                "--conv_mode", "dcls",
+                "--dcls_config", "6",
+                "--file_nb", "65"
+            ]
+        },
+        {
+            "name": "PATH INF MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main_inf.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "path",
+                "--gpu", "2", 
+                "--conv_mode", "dcls",
+                "--dcls_config", "6",
+                "--file_nb", "63"
+            ]
+        },
+        {
+            "name": "GSC MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "gsc",
+                "--gpu", "2", 
+                "--conv_mode", "dcls",
+                "--file_nb", "0"
+            ]
+        },
+        {
+            "name": "IMDB MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "imdb",
+                "--gpu", "0", 
+                "--conv_mode", "dcls",
+                "--file_nb", "0"
+            ]
+        },
+        
+        {
+            "name": "CIFAR MGRADE",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "cifar",
+                "--gpu", "0", 
+                "--conv_mode", "dcls",
+                "--dcls_config", "6",
+                "--file_nb", "100"
+            ]
+        },
+        {
+            "name": "WandB Plot",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/wandb_plot.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "torchet-tristan",
+                "DenGRU_general",
+                "76gu8tai"
+            ]
+        },
+        {
+            "name": "Inference Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/inf.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--ckpt_dir", "/home/tristan/Den-minGRU/checkpoints/general/listops_H128L6B32_do0_lr0.003wd0.02we30.0_skipLFET_DCLS256axgaus0.7hetPF8_recrelu_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0",
+                "--dataset", "listops",
+                "--gpu", "0"
+            ]
+        },
+        {
+            "name": "AAN Retrieval Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/inference/inference_aan.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}",
+                "CUDA_VISIBLE_DEVICES": "1",
+                "XLA_PYTHON_CLIENT_MEM_FRACTION": "0.9"
+            },
+            "justMyCode": false,
+            "stopOnEntry": false,
+            "args": []
+        },
+        {
+            "name": "Main Inf 2 - IMDB Vanilla",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/main_inf_2.py",
+            "console": "integratedTerminal",
+            "python": "/home/tristan/miniconda3/envs/.jax_conda_env_pcRNN/bin/python",
+            "args": [
+                "--dataset", "imdb",
+                "--gpu", "0",
+                "--conv_mode", "vanilla",
+                "--file_nb", "2199",
+                "--sim_name", "do"
+            ]
+        }
+    ]
+}

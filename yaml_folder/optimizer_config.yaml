@@ -1,0 +1,16 @@
+# Optimizer Configuration - Shared settings
+# This file contains common optimizer parameters to avoid repetition across experiment configs
+
+# Layer-specific optimizer settings
+lr_factors: [1,1,1,1,1,1]
+dcls_positions_optim: adam_big
+dcls_weights_optim: adamw
+mlp_kernel_optim: adamw
+gru_kernel_optim: adamw
+postnorm_scale_optim: adam
+mlp_scale_optim: adam
+mlp_bias_optim: adam
+gru_bias_optim: adam
+postnorm_bias_optim: adam
+bias_optim: adam
+scale_optim: adam

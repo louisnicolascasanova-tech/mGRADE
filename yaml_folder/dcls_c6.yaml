@@ -1,0 +1,13 @@
+# DCLS Configuration c6 - Shared settings
+# This file contains common DCLS parameters to avoid repetition across experiment configs
+# Note: kernel_n_elems, init_std, and weight_init_scale are experiment-specific and should be defined in individual configs
+
+# DCLS Core Settings
+delay_type: 'axonal' # DCLS: 'synaptic', 'axonal'
+delay_kernel: 'gaussian' # DCLS: 'gaussian'
+heterogeneous_weights: True 
+heterogeneous_positions: False 
+heterogeneous_std: False 
+train_weights: True 
+train_positions: True
+train_std: False

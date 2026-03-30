@@ -1,0 +1,168 @@
+DISCUSSION SUMMARY: CLEANING AND TRACKING IMPLEMENTATION
+=========================================================
+Date: 2025-07-31
+Context: Debugging IMDB training collapse around epochs 20-40
+
+PROBLEM IDENTIFIED:
+- IMDB experiments (yaml_folder/imdb_*) collapse between epochs 20-40
+- Validation accuracy drops to ~0.50 (random chance) suddenly
+- Need comprehensive monitoring to identify root cause
+
+SOLUTIONS IMPLEMENTED:
+======================
+
+1. GRADIENT MONITORING & CLIPPING
+---------------------------------
+Files Modified: training.py, main.py
+
+Added gradient tracking:
+- Global gradient norm: train/grad_norm, train/grad_norm_log
+- Pre/post clipping norms: train/grad_norm_post_clip  
+- Clipping indicator: train/grad_clipped (0/1)
+- Per-layer gradient norms: grad_norm/{layer}
+- Per-layer gradient variance: grad_variance/{layer}
+- Gradient histograms: train/gradients/{layer} (optional)
+
+Gradient clipping implementation:
+- Default clip norm: 1.0 (configurable via grad_clip_norm in YAML)
+- Uses optax.clip_by_global_norm()
+- Logs whether clipping occurred at each step
+
+Learning rate monitoring:
+- train/learning_rate tracks current LR schedule
+
+2. MODEL BEHAVIOR METRICS
+-------------------------
+Files Modified: training.py (apply_model, run_epoch, validate functions)
+
+Prediction confidence tracking:
+- train/mean_confidence: Average max softmax probability per batch
+- train/confidence_std: Standard deviation of max probabilities
+- Per-epoch aggregation: train/mean_confidence, train/confidence_std
+
+Class distribution analysis:
+- train/pred_class_{i}_ratio: Prediction distribution per class
+- train/target_class_{i}_ratio: True label distribution per class
+- Helps identify model bias and class collapse
+
+Classification reports (sklearn):
+- Per-class metrics: train/precision_class_{i}, train/recall_class_{i}, train/f1_class_{i}
+- Macro averages: train/macro_avg_precision, train/macro_avg_recall, train/macro_avg_f1
+- Weighted averages: train/weighted_avg_precision, train/weighted_avg_recall, train/weighted_avg_f1
+- Visual confusion matrix: train/confusion_matrix (wandb image)
+
+3. VALIDATION & TEST TRACKING  
+------------------------------
+Files Modified: training.py (validate, eval_model), main.py
+
+Enhanced validation function:
+- Returns metrics instead of logging separately (fixes wandb step ordering)
+- Collects predictions across all validation batches
+- Computes same classification metrics as training
+
+Validation metrics (val/ section):
+- val/loss, val/acc, val/loss_best, val/acc_best
+- val/mean_confidence, val/confidence_std
+- val/precision_class_{i}, val/macro_avg_f1, etc.
+- val/confusion_matrix
+
+Test metrics (test/ section):
+- test/loss_best, test/acc_best (when model improves)
+- test/mean_confidence, test/confidence_std
+- test/precision_class_{i}, test/macro_avg_f1, etc.
+- test/confusion_matrix
+
+4. WANDB ORGANIZATION
+---------------------
+Files Modified: training.py, main.py
+
+Implemented section-based logging:
+- train/ section: All training metrics
+- val/ section: All validation metrics  
+- test/ section: All test metrics
+- grad_norm/ section: Per-layer gradient norms
+- grad_variance/ section: Per-layer gradient variance
+
+Benefits:
+- Clean organization in wandb UI
+- Collapsible sections for focused analysis
+- Easy comparison between train/val/test
+
+5. STEP ORDERING FIXES
+----------------------
+Files Modified: training.py, main.py
+
+Fixed wandb logging issues:
+- Consolidated all batch-level logging into single wandb.log() call
+- Validation metrics returned to main loop for synchronized logging
+- Eliminated "step ordering" warnings
+
+6. DEBUG CONFIGURATION
+----------------------
+File Created: yaml_folder/imdb_dcls_debug.yaml
+
+Optimized hyperparameters for IMDB:
+- Reduced learning rate: 0.001 (was 0.004)
+- Reduced weight decay: 0.01 (was 0.1)
+- Increased hidden dim: 64 (was 32)
+- Added dropout: do_rate: 0.1
+- Shorter warmup: warmup_frac: 0.3
+- Gradient clipping: grad_clip_norm: 1.0
+- Model behavior tracking: log_model_behavior: True
+
+CURRENT STATE:
+==============
+
+Key Files Modified:
+- training.py: Enhanced with comprehensive monitoring
+- main.py: Updated for new monitoring parameters
+- yaml_folder/imdb_dcls_debug.yaml: Debug configuration
+
+New Parameters Available:
+- grad_clip_norm: Gradient clipping threshold (default: 1.0)
+- log_model_behavior: Enable/disable behavior tracking (default: True)
+- wandb_gradients: Enable/disable gradient histograms (default: False)
+
+DEBUGGING WORKFLOW:
+==================
+
+1. Run with debug config:
+   python main.py --config yaml_folder/imdb_dcls_debug.yaml
+
+2. Monitor in wandb:
+   - train/grad_norm: Watch for gradient explosion
+   - train/mean_confidence: Look for overconfidence (→1.0)
+   - val/macro_avg_f1: Track generalization degradation
+   - grad_norm/{layer}: Identify problematic layers
+   - train/confusion_matrix: Visual class confusion patterns
+
+3. Collapse indicators to watch:
+   - Sudden spikes in train/grad_norm
+   - Drop in train/mean_confidence
+   - Divergence between train/ and val/ metrics
+   - Specific layers showing extreme grad_norm/{layer} values
+
+TECHNICAL NOTES:
+===============
+
+- All logging uses single wandb.log() calls to avoid step conflicts
+- Classification reports computed for ≤10 classes to avoid clutter
+- Confusion matrices saved as wandb images for visualization
+- Per-layer metrics use flattened parameter names (e.g., 'Dense_0/kernel')
+- Model behavior collection is configurable for performance
+
+NEXT STEPS:
+==========
+
+1. Run imdb_dcls_debug.yaml and monitor metrics
+2. Identify specific layers/epochs where collapse begins
+3. Adjust hyperparameters based on gradient/confidence patterns
+4. Consider architecture modifications if specific components problematic
+5. Use grad_norm/ and grad_variance/ to guide gradient clipping strategies
+
+FILES TO CONTINUE FROM:
+======================
+- training.py: Core monitoring implementation
+- main.py: Main training loop with monitoring
+- yaml_folder/imdb_dcls_debug.yaml: Debug configuration
+- This summary file for context

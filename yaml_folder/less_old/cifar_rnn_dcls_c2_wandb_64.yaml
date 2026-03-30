@@ -1,0 +1,96 @@
+name: sweep
+metric:
+  name: test_ac
+  goal: maximize
+method: grid
+parameters:
+  dataset:
+    value: cifar
+  n_epochs:
+    value: 100
+  mem_frac:
+    value: 0.5
+  batch_size:
+    value: 32
+  lr:
+    value: 0.004
+  scheduler:
+    value: true
+  alpha_cosine:
+    value: 0
+  warmup_frac:
+    value: 0.5
+  weight_decay:
+    value: 0.1
+  n_layers:
+    value: 6
+  encoder:
+    value: true
+  layer_skip:
+    value: false
+  element_skip:
+    value: true
+  enable_rec:
+    value: true
+  rec_act:
+    value: relu
+  enable_conv:
+    value: true
+  conv:
+    value: dcls
+  constant_dilation:
+    value: null
+  wavenet_dilation:
+    value: null
+  dilation_schedule:
+    value: null
+  dilation_offset:
+    value: null
+  dilation_boundary:
+    value: null
+  delay_type:
+    value: axonal
+  delay_kernel:
+    value: gaussian
+  init_std:
+    value: 0.7
+  heterogeneous_std:
+    value: false
+  train_positions:
+    value: true
+  train_std:
+    value: false
+  enable_cm:
+    value: true
+  channel_mixing:
+    value: mlp
+  cm_act:
+    value: relu
+  glu_type:
+    value: null
+  latent_dim:
+    value: null
+  comp_act:
+    value: null
+  postnorm:
+    value: true
+  do_rate:
+    value: 0
+  reg_factor:
+    value: 0
+  wandb_gradients:
+    value: false
+  hidden_dim:
+    value: 32
+  kernel_size:
+    value: 64
+  heterogeneous_positions:
+    value: false
+  heterogeneous_weights:
+    value: true
+  train_weights:
+    value: false
+  seed:
+    values: [0, 1, 2]
+  kernel_n_elems:
+    values: [4, 8, 16, 32]

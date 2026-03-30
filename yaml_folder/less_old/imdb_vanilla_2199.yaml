@@ -1,0 +1,91 @@
+# This DCLS YAML implements: DCLS homP_fixedOnesW
+seed: 3
+mem_frac: 0.95
+n_epochs: 100
+batch_size: 32
+lr: 0.002
+lr_factors: [1, 1, 1, 1, 1, 1]  # Learning rate factors per layer (layer 0 gets 10x, layer 1 gets 8x, etc.)
+scheduler: True
+alpha_cosine: 0
+warmup_frac: 0.1
+weight_decay: 0.1
+bias_optim: adam
+scale_optim: adam
+# Layer-specific optimizer settings
+# kernel optim 
+dcls_positions_optim: adam_big
+dcls_weights_optim: adamw
+mlp_kernel_optim: adamw
+gru_kernel_optim: adamw
+# scale and bias optimizers
+postnorm_scale_optim: adam
+mlp_scale_optim: adam
+mlp_bias_optim: adam
+gru_bias_optim: adam
+postnorm_bias_optim: adam
+n_layers: 6
+hidden_dim: 10
+# ENCODER
+encoder: True
+encoder_scale: 1.0 # changed from cfg 60
+encoder_bias: True
+# SKIP
+layer_skip: False
+element_skip: True
+# RECURRENT
+enable_rec: True
+rec_act: relu
+rec_ln: False
+dense_z_weight_init_scale: 1.  # CHANGED FROM cfg 60
+dense_z_bias_init: 'ubi'  # 'zero', 'ugi', 'constant', 'ubi'
+dense_h_weight_init_scale: 1.
+dense_h_bias_init: 'zero'  # 'zero', 'ugi', 'constant', 'ubi'
+# CONVOLUTION
+enable_conv: False
+conv: ~ # 'dcls', 'conv', ~
+kernel_size: ~
+conv_ln: False  # whether to apply LayerNorm before the convolution layer
+# LERF and EERF
+wavenet_dilation: False # False means LERF, True means EERF /home/tristan/Den-minGRU/checkpoints/general/path_H96L6B64_do0_lr0.005wd0.01we10.0_skipLFET_DCLS160axgaus0.7hetPF8_recrelu_cmmlprelu_HpreReg0_CFNone_pT_hetWTSFtrainWTSFPT_s0_training_1/warmup
+# LERF
+constant_dilation: ~ 
+# EERF
+dilation_schedule: ~ # 'clip', 'wrap', ~
+dilation_offset: ~
+dilation_boundary: ~
+# DCLS
+delay_type: ~ # DCLS: 'synaptic', 'axonal'
+delay_kernel: ~ # DCLS: 'gaussian'
+init_std: ~ # DCLS
+kernel_n_elems: ~
+heterogeneous_weights: ~ 
+heterogeneous_positions: ~ 
+heterogeneous_std: ~
+train_weights: ~
+train_positions: ~
+train_std: ~
+weight_init_scale: ~
+# CHANNEL MIXING
+enable_cm: True
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'relu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
+cm_ln: False
+# COMPRESSION
+latent_dim: ~
+comp_act: ~ # 'relu', 'gelu', 'linear'
+# NORMALIZATION
+postnorm: True
+# DECODER
+decoder_bias: True
+# REGULARIZATION
+do_rate: 0
+reg_factor: 0
+# Gradient clipping
+grad_clip_norm: 2.
+# Logging
+log_model_behavior: True
+# Wandb gradients
+wandb_gradients: True
+wandb_states: True  # Enable state tracking for network dynamics
+wandb_matrices: True  # Enable matrix logging for debugging

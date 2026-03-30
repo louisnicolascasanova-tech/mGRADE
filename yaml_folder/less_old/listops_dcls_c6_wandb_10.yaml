@@ -1,0 +1,158 @@
+name: sweep
+metric:
+  name: val/acc_best
+  goal: maximize
+method: grid
+parameters:
+  dataset:
+    value: listops
+  n_epochs:
+    value: 100
+  mem_frac:
+    value: 0.9
+  batch_size:
+    value: 64
+  lr:
+    value: 0.003
+  lr_factors:
+    value: [1, 1, 1, 1, 1, 1]
+  scheduler:
+    value: true
+  alpha_cosine:
+    value: 0.27
+  warmup_frac:
+    value: 0.1
+  weight_decay:
+    value: 0.1
+  bias_optim:
+    value: adam
+  scale_optim:
+    value: adam
+  n_layers:
+    value: 6
+  encoder:
+    value: true
+  layer_skip:
+    value: false
+  element_skip:
+    value: true
+  enable_rec:
+    value: true
+  rec_act:
+    value: sigmoid
+  enable_conv:
+    value: true
+  conv:
+    value: dcls
+  constant_dilation:
+    value: null
+  wavenet_dilation:
+    value: null
+  dilation_schedule:
+    value: null
+  dilation_offset:
+    value: null
+  dilation_boundary:
+    value: null
+  delay_type:
+    value: axonal
+  delay_kernel:
+    value: gaussian
+  init_std:
+    value: 0.7
+  heterogeneous_std:
+    value: false
+  train_positions:
+    value: true
+  train_std:
+    value: false
+  enable_cm:
+    value: true
+  channel_mixing:
+    value: mlp
+  cm_act:
+    value: relu
+  glu_type:
+    value: null
+  latent_dim:
+    value: null
+  comp_act:
+    value: null
+  do_rate:
+    value: 0.1
+  reg_factor:
+    value: 0
+  hidden_dim:
+    value: 128
+  kernel_size:
+    value: 64
+  heterogeneous_positions:
+    value: false
+  heterogeneous_weights:
+    value: true
+  train_weights:
+    value: true
+  seed:
+    values: [0,1,2]
+  kernel_n_elems:
+    value: 8
+  grad_clip_norm:
+    value: 10
+  log_model_behavior:
+    value: true
+  encoder_bias:
+    value: true
+  encoder_scale:
+    value: 1.0
+  decoder_bias:
+    value: true
+  dense_z_weight_init_scale:
+    value: 1.
+  dense_z_bias_init:
+    value: ugi
+  dense_h_bias_init:
+    value: zero
+  dense_h_weight_init_scale:
+    value: 1.
+  decoder_bias:
+    value: true
+  weight_init_scale:
+    value: .25
+  # wandb
+  wandb_matrices:
+    value: false
+  wandb_gradients:
+    value: false
+  wandb_states:
+    value: true
+  # Layer-specific optimizer settings
+  dcls_positions_optim: 
+    value: adam_big
+  dcls_weights_optim: 
+    value: adamw
+  mlp_kernel_optim: 
+    value: adamw
+  gru_kernel_optim: 
+    value: adamw
+  postnorm_scale_optim: 
+    value: adam
+  mlp_scale_optim: 
+    value: adam
+  mlp_bias_optim: 
+    value: adam
+  gru_bias_optim: 
+    value: adam
+  postnorm_bias_optim: 
+    value: adam
+  # Layernorm
+  encoder_ln:
+    value: false
+  conv_ln:
+    value: false
+  rec_ln:
+    value: false
+  cm_ln:
+    value: false
+  postnorm:
+    value: true
+

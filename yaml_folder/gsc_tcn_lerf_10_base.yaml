@@ -1,0 +1,72 @@
+sim_name: gsc_MLPh+x_1e-4lr_40wu0.1_h96_4lerf8_z1UGI_h1Zero_Ggn1_bs8_convLN_recLN_wd0.02_s2
+seed: 2
+mem_frac: 0.95
+n_epochs: 40
+batch_size: 8
+lr: 0.0001
+scheduler: True
+alpha_cosine: 0
+warmup_frac: 0.1
+weight_decay: 0.01
+# Optimizer settings - Configuration loaded from optimizer_config.yaml
+n_layers: 6
+hidden_dim: 96
+# ENCODER
+encoder: True
+encoder_scale: 1.0 # changed from cfg 60
+encoder_bias: True
+# SKIP
+layer_skip: False
+element_skip: True
+# RECURRENT
+enable_rec: True
+rec_act: linear
+rec_ln: True
+dense_z_weight_init_scale: 1 # CHANGED FROM cfg 60
+dense_z_bias_init: ugi  # 'zero', 'ugi', 'constant'
+dense_h_weight_init_scale: 1
+dense_h_bias_init: zero  # 'zero', 'ugi', 'constant', 'ubi'
+rec_dense_out: True
+rec_dense_out_act: False
+# CONVOLUTION
+enable_conv: True
+conv: 'conv' # 'dcls', 'conv', ~
+kernel_size: 4
+conv_ln: True
+# LERF and EERF
+wavenet_dilation: ~ # False means LERF, True means EERF
+# LERF
+constant_dilation: 8 
+# EERF
+dilation_schedule: ~ # 'clip', 'wrap', ~
+dilation_offset: ~
+dilation_boundary: ~
+# DCLS - Configuration loaded from dcls_c6.yaml
+dcls_config: ~ # 0: homP_onesW, 1: hetP_onesW, ..., 6: homPtrained_hetWtrained, ...
+kernel_n_elems: ~
+init_std: ~ # DCLS
+weight_init_scale: ~
+# CHANNEL MIXING
+enable_cm: True
+channel_mixing: 'mlp'  # 'glu', 'mlp', ~
+cm_act: 'gelu' # 'relu', 'gelu', 'linear'
+glu_type: ~ # 'full', 'candidate', 'gate'
+# COMPRESSION
+latent_dim: ~
+comp_act: ~ # 'relu', 'gelu', 'linear'
+# NORMALIZATION
+postnorm: True
+# DECODER
+decoder_bias: True
+# REGULARIZATION
+do_rate: 0
+reg_factor: 0
+# Gradient clipping
+grad_clip_norm: 1
+# Logging
+enable_monitoring: True
+log_model_behavior: True
+# Wandb gradients
+wandb_gradients: True
+wandb_states: True  # Enable state tracking for network dynamics
+wandb_matrices: False

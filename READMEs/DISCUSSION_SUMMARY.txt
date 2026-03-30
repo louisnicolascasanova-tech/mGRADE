@@ -1,0 +1,72 @@
+DISCUSSION SUMMARY - Code Refactoring and Consolidation
+=======================================================
+
+DATE: 2025-07-31
+TOPIC: Merging main.py and main_wandb.py + Code Refactoring
+
+PROBLEM IDENTIFIED:
+------------------
+- main.py and main_wandb.py were substantially the same, with only differences in wandb setup
+- Any modification to main.py required manual porting to main_wandb.py (cumbersome maintenance)
+- The main function contained 80+ lines of verbose, repetitive setup code that was hard to maintain
+
+SOLUTION IMPLEMENTED:
+--------------------
+
+1. FILE CONSOLIDATION:
+   - Merged main.py and main_wandb.py into a single main.py file
+   - Added --sweep flag to differentiate between regular and sweep modes
+   - Backed up original main_wandb.py as main_wandb_backup.py
+
+   Usage:
+   - Regular mode: python main.py --dataset mnist --conv_mode dcls --file_nb 0
+   - Sweep mode:   python main.py --sweep --dataset mnist --conv_mode dcls --file_nb 0
+
+2. CODE REFACTORING:
+   - Extracted 4 helper functions from verbose main() setup code:
+     * setup_random_seeds() - handles all random seed initialization
+     * parse_experiment_config() - parses dimensions and validates config
+     * generate_experiment_id() - creates experiment identifier strings
+     * create_experiment_directories() - handles directory creation with conflict resolution
+
+   - Reduced main() setup from 80+ lines to just a few clean function calls
+   - Functions were moved to utils.py (as indicated by the import statement)
+
+KEY CHANGES IN MAIN.PY:
+----------------------
+- Modified main(args=None) to handle both argparse and wandb.config
+- Added args._from_wandb marker to distinguish sweep vs regular mode
+- Conditional training dynamics saving (only in non-sweep mode)
+- Unified argument parsing and wandb initialization logic
+- Different YAML file patterns: regular uses {dataset}_{conv_mode}_{file_nb}.yaml, 
+  sweep uses {dataset}_{conv_mode}_wandb_{file_nb}.yaml
+
+TECHNICAL DETAILS:
+-----------------
+- Helper functions use clear separation of concerns
+- Boolean-to-string conversion unified with lambda helper
+- Directory conflict resolution handles automatic numbering
+- Maintains all original functionality while improving maintainability
+
+BENEFITS ACHIEVED:
+-----------------
+- Single source of truth - no more dual maintenance
+- Much cleaner, more readable code
+- Functions are testable and reusable
+- Reduced risk of copy-paste errors
+- Easier to extend and modify
+
+FILES MODIFIED:
+--------------
+- main.py (consolidated and refactored)
+- main_wandb.py → main_wandb_backup.py (backed up)
+- utils.py (helper functions moved here based on import statement)
+
+NEXT STEPS IF REOPENING:
+-----------------------
+- The refactoring appears complete and tested
+- Helper functions may need further testing in real training scenarios
+- Could consider additional refactoring of the training loop itself
+- Monitor for any edge cases in sweep vs regular mode behavior
+
+STATUS: COMPLETED SUCCESSFULLY
