@@ -577,7 +577,7 @@ def generate_experiment_id(args, hidden_dim, latent_dim, seed):
     
     # Combine all parts
     id_parts = [
-        f"general/{args.dataset}",
+        args.dataset,
         f"H{hidden_dim_str}L{args.n_layers}B{args.batch_size}",
         f"do{args.do_rate}",
         f"lr{args.lr}wd{args.weight_decay}we{args.warmup_epochs}",

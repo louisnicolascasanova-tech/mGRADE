@@ -83,8 +83,15 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights,
         aux_dict: Auxiliary outputs (logits, predictions, confidence, etc.)
     """
     def loss_fn(params):
+        # Handle case where x is a tuple (inputs, lengths) for datasets like AAN
+        if isinstance(x, tuple):
+            inputs, lengths = x
+            model_input = (inputs.astype(dtype), lengths)
+        else:
+            model_input = x.astype(dtype)
+
         net_dyn, logits, monitor = model.apply(
-            {'params': params}, x.astype(dtype), rngs={'dropout': do_key}
+            {'params': params}, model_input, rngs={'dropout': do_key}
         )
         one_hot = jax.nn.one_hot(y, model.out_dim, dtype=jnp.float32)
         batch_loss = optax.softmax_cross_entropy(
@@ -127,7 +134,7 @@ def apply_model(state, model, x, y, reg_factor, do_key, class_weights,
     return grads, loss, accuracy, aux_dict
 
 
-def apply_retrieval_model(state, model, x, y, reg_factor, do_key, 
+def apply_retrieval_model(state, model, x, y, reg_factor, do_key,
                             dtype=jnp.float32):
     """
     Apply model for retrieval tasks (e.g., AAN).
@@ -135,8 +142,15 @@ def apply_retrieval_model(state, model, x, y, reg_factor, do_key,
     Similar to apply_model but simplified for retrieval-specific architectures.
     """
     def loss_fn(params):
+        # Handle case where x is a tuple (inputs, lengths) for datasets like AAN
+        if isinstance(x, tuple):
+            inputs, lengths = x
+            model_input = (inputs.astype(dtype), lengths)
+        else:
+            model_input = x.astype(dtype)
+
         net_dyn, logits, monitor = model.apply(
-            {'params': params}, x.astype(dtype), rngs={'dropout': do_key}
+            {'params': params}, model_input, rngs={'dropout': do_key}
         )
         one_hot = jax.nn.one_hot(y, model.out_dim, dtype=jnp.float32)
         loss = jnp.mean(optax.softmax_cross_entropy(
