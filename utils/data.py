@@ -46,7 +46,7 @@ class StratifiedBatchSampler(Sampler):
     """
 
     def __init__(self, labels, batch_size: int, shuffle: bool = True,
-                 seed: int = None, drop_last: bool = True):
+                    seed: int = None, drop_last: bool = True):
         self.labels = np.array(labels)
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -63,13 +63,16 @@ class StratifiedBatchSampler(Sampler):
 
         # Calculate samples per class per batch
         if self.batch_size % self.num_classes != 0:
-            print(f"Warning: batch_size ({self.batch_size}) is not evenly divisible by "
-                  f"num_classes ({self.num_classes}). Class balance may not be exact.")
+            print(f"Warning: batch_size ({self.batch_size}) is not evenly "
+                    f"divisible by num_classes ({self.num_classes}). "
+                    f"Class balance may not be exact.")
 
         self.samples_per_class = self.batch_size // self.num_classes
 
         # Calculate number of batches
-        min_class_size = min(len(indices) for indices in self.class_indices.values())
+        min_class_size = min(
+            len(indices) for indices in self.class_indices.values()
+        )
         self.num_batches = min_class_size // self.samples_per_class
 
         if self.seed is not None:
@@ -112,8 +115,9 @@ class StratifiedBatchSampler(Sampler):
 
 
 def create_stratified_dataloader(dataset, labels, batch_size: int,
-                                 shuffle: bool = True, seed: int = None,
-                                 drop_last: bool = True, num_workers: int = 0):
+                                    shuffle: bool = True, seed: int = None,
+                                    drop_last: bool = True, 
+                                    num_workers: int = 0):
     """
     Create a DataLoader with stratified batch sampling.
 
@@ -172,7 +176,8 @@ def extract_labels_from_dataset(dataset):
         return labels[dataset.indices]
     else:
         # Fallback: iterate through dataset
-        print("Warning: Extracting labels by iterating through dataset. This may be slow.")
+        print("Warning: Extracting labels by iterating through dataset. "
+                "This may be slow.")
         labels = []
         for i in range(len(dataset)):
             _, label = dataset[i]
@@ -185,7 +190,9 @@ def extract_labels_from_dataset(dataset):
 # ============================================================================
 
 # WARNING: this code is from QSSM project and won't be updated
-def create_mnist_classification_dataset(bsz=128, root="./data", version="sequential"):
+def create_mnist_classification_dataset(
+        bsz=128, root="./data", version="sequential"
+    ):
     print("[*] Generating MNIST Classification Dataset...")
     assert version in ["sequential", "row"], "Invalid version for MNIST dataset"
 
@@ -222,13 +229,16 @@ def create_mnist_classification_dataset(bsz=128, root="./data", version="sequent
 
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
-        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
     valloader = torch.utils.data.DataLoader(
-        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
     testloader = torch.utils.data.DataLoader(
-        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
 
     return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
@@ -267,13 +277,16 @@ def create_cifar_gs_classification_dataset(bsz=128, root="./data"):
 
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
-        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
     valloader = torch.utils.data.DataLoader(
-        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
     testloader = torch.utils.data.DataLoader(
-        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
 
     return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
@@ -331,7 +344,8 @@ def make_data_loader(
     )
 
 def create_lra_imdb_classification_dataset(
-    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, batch_size: int = 50, seed: int = 42
+    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, batch_size: int = 50, 
+    seed: int = 42
 ):
     print("[*] Generating LRA-text (IMDB) Classification Dataset")
     name = "imdb"
@@ -371,7 +385,8 @@ def create_lra_imdb_classification_dataset(
     )
 
 def create_lra_listops_classification_dataset(
-    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, batch_size: int = 50, seed: int = 42
+    cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT, batch_size: int = 50, 
+    seed: int = 42
 ):
     print("[*] Generating LRA-listops Classification Dataset")
 
@@ -493,7 +508,9 @@ def prep_batch(batch, seq_len, in_dim, dtype=jnp.float32):
     # Make all batches have same sequence length
     num_pad = seq_len - inputs.shape[1]
     if num_pad > 0:
-        inputs = jnp.pad(inputs, ((0, 0), (0, num_pad)), "constant", constant_values=(0,))
+        inputs = jnp.pad(
+            inputs, ((0, 0), (0, num_pad)), "constant", constant_values=(0,)
+        )
 
     # Inputs size is [n_batch, seq_len] or [n_batch, seq_len, in_dim].
     # If there are not three dimensions and trailing dimension is not equal to in_dim then
@@ -541,7 +558,8 @@ def generate_experiment_id(args, hidden_dim, latent_dim, seed):
     # Basic config strings
     hidden_dim_str = hidden_dim[0]
     latent_dim_str = latent_dim[0] if latent_dim[0] is not None else 'F'
-    skip_str = f"skipL{bool_to_str(args.layer_skip)}E{bool_to_str(args.element_skip)}"
+    skip_str = f'skipL{bool_to_str(args.layer_skip)}' + \
+                f'E{bool_to_str(args.element_skip)}'
     postnorm_str = bool_to_str(args.postnorm)
     
     # Convolution config string
@@ -549,10 +567,12 @@ def generate_experiment_id(args, hidden_dim, latent_dim, seed):
         delay_type_str = 'syn' if args.delay_type == 'synaptic' else 'ax'
         delay_ker_str = 'gaus' if args.delay_kernel == 'gaussian' else 'exp'
         hete_pos_str = f'hetP{bool_to_str(args.heterogeneous_positions)}'
-        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}{args.init_std}{hete_pos_str}{args.kernel_n_elems}'
+        conv_str = f'DCLS{args.kernel_size}{delay_type_str}{delay_ker_str}' + \
+                    f'{args.init_std}{hete_pos_str}{args.kernel_n_elems}'
     elif args.conv == 'conv':
         wavenet_str = 'eerf' if args.wavenet_dilation else 'lerf'
-        schedule_str = args.dilation_schedule if args.dilation_schedule is not None else 'F'
+        schedule_str = args.dilation_schedule if \
+            args.dilation_schedule is not None else 'F'
         conv_str = f'conv{args.kernel_size}{wavenet_str}sch{schedule_str}'
     else:
         conv_str = 'F'
@@ -643,9 +663,11 @@ def compute_class_weights(train_loader, num_classes):
     
     return tuple(class_weights.tolist())
 
-def create_lra_path32_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
-											 bsz: int = 50,
-											 seed: int = 42):
+def create_lra_path32_classification_dataset(
+        cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
+        bsz: int = 50,
+        seed: int = 42
+    ):
 	"""
 	See abstract template.
 	"""
@@ -658,9 +680,17 @@ def create_lra_path32_classification_dataset(cache_dir: Union[str, Path] = DEFAU
 	dataset_obj.cache_dir = Path(cache_dir) / name
 	dataset_obj.setup()
 
-	trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
-	val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
-	tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+	trn_loader = make_data_loader(
+        dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz
+    )
+	val_loader = make_data_loader(
+        dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, 
+        drop_last=False, shuffle=False
+    )
+	tst_loader = make_data_loader(
+        dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, 
+        drop_last=False, shuffle=False
+    )
 
 	N_CLASSES = dataset_obj.d_output
 	SEQ_LENGTH = dataset_obj.dataset_train.tensors[0].shape[1]
@@ -669,12 +699,15 @@ def create_lra_path32_classification_dataset(cache_dir: Union[str, Path] = DEFAU
 
 	aux_loaders = {}
 
-	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
+	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, \
+        SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
-def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
-											bsz: int = 50,
-											seed: int = 42,
-											stratified: bool = False):
+def create_lra_pathx_classification_dataset(
+        cache_dir: Union[str, Path] = DEFAULT_CACHE_DIR_ROOT,
+        bsz: int = 50,
+        seed: int = 42,
+        stratified: bool = False
+    ):
 	"""
 	Create PathX dataset with optional stratified batch sampling.
 
@@ -690,7 +723,8 @@ def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAUL
 	if stratified:
 		print("[*] Generating LRA-PathX Classification Dataset (STRATIFIED SAMPLING)")
 		if bsz % 2 != 0:
-			print(f"Warning: batch_size ({bsz}) is odd. For perfect 50/50 split, use even batch size.")
+			print(f"Warning: batch_size ({bsz}) is odd. "
+                    f"For perfect 50/50 split, use even batch size.")
 	else:
 		print("[*] Generating LRA-PathX Classification Dataset")
 
@@ -726,13 +760,24 @@ def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAUL
 			batch_size=bsz, shuffle=False, seed=seed, drop_last=False
 		)
 
-		print(f"  Stratified batches created: Train={len(trn_loader)}, Val={len(val_loader)}, Test={len(tst_loader)}")
+		print(f"  Stratified batches created: "
+                f"Train={len(trn_loader)}, "
+                f"Val={len(val_loader)}, "
+                f"Test={len(tst_loader)}")
 		print(f"  Each batch has exactly {bsz//2} samples from each class")
 	else:
 		# Use standard dataloaders
-		trn_loader = make_data_loader(dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz)
-		val_loader = make_data_loader(dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
-		tst_loader = make_data_loader(dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, drop_last=False, shuffle=False)
+		trn_loader = make_data_loader(
+            dataset_obj.dataset_train, dataset_obj, seed=seed, batch_size=bsz
+        )
+		val_loader = make_data_loader(
+            dataset_obj.dataset_val, dataset_obj, seed=seed, batch_size=bsz, 
+            drop_last=False, shuffle=False
+        )
+		tst_loader = make_data_loader(
+            dataset_obj.dataset_test, dataset_obj, seed=seed, batch_size=bsz, 
+            drop_last=False, shuffle=False
+        )
 
 	N_CLASSES = dataset_obj.d_output
 	SEQ_LENGTH = dataset_obj.dataset_train.tensors[0].shape[1]
@@ -741,7 +786,8 @@ def create_lra_pathx_classification_dataset(cache_dir: Union[str, Path] = DEFAUL
 
 	aux_loaders = {}
 
-	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
+	return trn_loader, val_loader, tst_loader, aux_loaders, N_CLASSES, \
+        SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
 class SpeechCommandsDataset(Dataset):
@@ -767,20 +813,24 @@ class SpeechCommandsDataset(Dataset):
     # Class labels for each version
     CLASSES_V1 = [
         'yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go',
-        'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
-        'bed', 'bird', 'cat', 'dog', 'happy', 'house', 'marvin', 'sheila', 'tree', 'wow'
+        'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 
+        'nine', 'bed', 'bird', 'cat', 'dog', 'happy', 'house', 'marvin', 
+        'sheila', 'tree', 'wow'
     ]
     
-    CLASSES_V2 = CLASSES_V1 + ['backward', 'forward', 'follow', 'learn', 'visual']
+    CLASSES_V2 = CLASSES_V1 + \
+        ['backward', 'forward', 'follow', 'learn', 'visual']
     
-    def __init__(self, 
-                 root: str = './data',
-                 subset: str = 'training',
-                 version: str = 'v2',
-                 download: bool = True,
-                 transform: Optional[callable] = None,
-                 sample_rate: int = 16000,
-                 max_length: int = 16000):
+    def __init__(
+            self, 
+            root: str = './data',
+            subset: str = 'training',
+            version: str = 'v2',
+            download: bool = True,
+            transform: Optional[callable] = None,
+            sample_rate: int = 16000,
+            max_length: int = 16000
+        ):
         
         self.root = Path(root)
         self.subset = subset
@@ -856,11 +906,15 @@ class SpeechCommandsDataset(Dataset):
                 relative_path = f"{class_name}/{audio_file.name}"
                 
                 # Determine subset
-                if self.subset == 'validation' and relative_path in validation_files:
+                if self.subset == 'validation' and \
+                    relative_path in validation_files:
                     data.append((audio_file, class_idx))
-                elif self.subset == 'testing' and relative_path in testing_files:
+                elif self.subset == 'testing' and \
+                    relative_path in testing_files:
                     data.append((audio_file, class_idx))
-                elif self.subset == 'training' and relative_path not in validation_files and relative_path not in testing_files:
+                elif self.subset == 'training' and \
+                    relative_path not in validation_files and \
+                    relative_path not in testing_files:
                     data.append((audio_file, class_idx))
         
         # Add background noise as a separate class (optional)
@@ -888,7 +942,9 @@ class SpeechCommandsDataset(Dataset):
         
         # Resample if necessary
         if orig_sample_rate != self.sample_rate:
-            resampler = torchaudio.transforms.Resample(orig_sample_rate, self.sample_rate)
+            resampler = torchaudio.transforms.Resample(
+                orig_sample_rate, self.sample_rate
+            )
             waveform = resampler(waveform)
         
         # Convert to mono if stereo
@@ -914,7 +970,8 @@ def create_speechcommands35_classification_dataset(
         dtype: jnp.dtype = jnp.float32,
         sample_rate: int = 16000,
         max_length: int = 16000,
-        download: bool = True) -> Tuple[DataLoader, DataLoader, DataLoader, int, int, int]:
+        download: bool = True) -> \
+            Tuple[DataLoader, DataLoader, DataLoader, int, int, int]:
     """
     Create DataLoaders for training, validation, and testing sets
     
@@ -958,21 +1015,27 @@ def create_speechcommands35_classification_dataset(
 
     # Create dataloaders
     train_loader = DataLoader(
-        train_dataset, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+        train_dataset, batch_size=bsz, shuffle=True, 
+        collate_fn=custom_collate_fn, drop_last=True
     )
     
     val_loader = DataLoader(
-        val_dataset, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=False
+        val_dataset, batch_size=bsz, shuffle=False, 
+        collate_fn=custom_collate_fn, drop_last=False
     )
     
     test_loader = DataLoader(
-        test_dataset, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=False
+        test_dataset, batch_size=bsz, shuffle=False, 
+        collate_fn=custom_collate_fn, drop_last=False
     )
 
     return train_loader, val_loader, test_loader, N_CLASSES, SEQ_LENGTH, IN_DIM
 
 
-def create_uea_classification_dataset(dataset_name, bsz=128, data_dir="./data_dir", dtype=jnp.float32, seed=42):
+def create_uea_classification_dataset(
+        dataset_name, bsz=128, data_dir="./data_dir", dtype=jnp.float32, 
+        seed=42
+    ):
     """
     Create PyTorch dataloaders for any UEA dataset.
 
@@ -1051,13 +1114,16 @@ def create_uea_classification_dataset(dataset_name, bsz=128, data_dir="./data_di
 
     # Return data loaders, with the provided batch size
     trainloader = DataLoader(
-        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, drop_last=True
+        train, batch_size=bsz, shuffle=True, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
     valloader = DataLoader(
-        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+        val, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
     testloader = DataLoader(
-        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, drop_last=True
+        test, batch_size=bsz, shuffle=False, collate_fn=custom_collate_fn, 
+        drop_last=True
     )
 
     return trainloader, valloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM

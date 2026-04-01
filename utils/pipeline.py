@@ -5,8 +5,10 @@ training script to improve modularity and testability.
 """
 
 import os
+from dataclasses import dataclass
 from functools import partial
-from typing import Tuple
+from abc import ABC, abstractmethod
+from typing import Tuple, Dict, Any, Callable, Optional
 
 import jax
 import jax.numpy as jnp
@@ -32,11 +34,50 @@ from . import (
 )
 from .types import DatasetInfo, ExperimentDirs, TrainingState, TrainingResults
 from model import BatchRNN_General, RNN_General_Retrieval_Backbone
-from training import create_train_state, run_epoch, validate, create_learning_rate_map
+from training import (
+    create_train_state, run_epoch, validate, create_learning_rate_map,
+    EpochConfig, WandBLogConfig
+)
 
 
-def setup_dataset(args, dtype):
-    """Load and prepare dataset.
+@dataclass
+class EarlyStoppingConfig:
+    """Early stopping configuration with dataset-specific thresholds.
+
+    Args:
+        patience: Number of epochs to wait before stopping
+        min_improvement: Minimum improvement threshold
+        overflow_threshold: Maximum overfitting occurrences before stopping
+    """
+    patience: int
+    min_improvement: float
+    overflow_threshold: int = 5
+
+    @classmethod
+    def for_dataset(cls, dataset: str) -> 'EarlyStoppingConfig':
+        """Get dataset-specific early stopping configuration.
+
+        Args:
+            dataset: Dataset name
+
+        Returns:
+            EarlyStoppingConfig with dataset-specific parameters
+        """
+        configs = {
+            'listops': cls(patience=10, min_improvement=0.005),
+            'aan': cls(patience=10, min_improvement=0.01),
+            'imdb': cls(patience=10, min_improvement=0.005),
+            'mnist': cls(patience=10, min_improvement=0.01),
+            'cifar': cls(patience=10, min_improvement=0.01),
+            'path': cls(patience=10, min_improvement=0.01),
+            'pathx': cls(patience=10, min_improvement=0.01),
+            'gsc': cls(patience=10, min_improvement=0.01),
+        }
+        return configs.get(dataset, cls(patience=10, min_improvement=0.01))
+
+
+def setup_dataset(args, dtype) -> DatasetInfo:
+    """Load and prepare dataset using appropriate loader.
 
     Args:
         args: Configuration containing dataset name, batch_size, seed, etc.
@@ -44,7 +85,11 @@ def setup_dataset(args, dtype):
 
     Returns:
         DatasetInfo with loaders, dimensions, metadata, and sample batch
+
+    Raises:
+        ValueError: If dataset name is not recognized
     """
+    # Define dataset functions
     dataset_fns = {
         'cifar': create_cifar_gs_classification_dataset,
         'mnist': create_mnist_classification_dataset,
@@ -56,71 +101,28 @@ def setup_dataset(args, dtype):
         'gsc': create_speechcommands35_classification_dataset,
     }
 
-    # Load dataset based on type
+    # Get dataset function
+    if args.dataset not in dataset_fns:
+        raise ValueError(f"Unknown dataset: {args.dataset}")
+
+    dataset_fn = dataset_fns[args.dataset]
+
+    # Create appropriate loader based on dataset type
     if args.dataset in ['cifar', 'mnist', 'gsc']:
-        if args.dataset in ['cifar', 'mnist']:
-            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, \
-                IN_DIM = dataset_fns[args.dataset](
-                    bsz=args.batch_size, root="data", dtype=dtype
-                )
-        elif args.dataset == 'gsc':
-            trainloader, val_loader, testloader, N_CLASSES, SEQ_LENGTH, \
-                IN_DIM = dataset_fns[args.dataset](
-                    bsz=args.batch_size, root="data", dtype=dtype
-                )
-        batch_x, batch_y = next(iter(testloader))
-
+        loader = MnistCifarGscDatasetLoader(args.dataset, dataset_fn)
     elif args.dataset in ['imdb', 'listops', 'aan']:
-        trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, \
-            IN_DIM, _ = dataset_fns[args.dataset](
-                batch_size=args.batch_size, seed=args.seed
-            )
-        batch = next(iter(testloader))
-        batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM)
-
+        loader = TextDatasetLoader(args.dataset, dataset_fn)
     elif args.dataset in ['path', 'pathx']:
-        # Check if stratified sampling is requested for PathX
-        if args.dataset == 'pathx' and \
-            getattr(args, 'stratified_sampling', False):
-            print("[*] Using STRATIFIED sampling for PathX (balanced batches)")
-            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, \
-                IN_DIM, _ = dataset_fns[args.dataset](
-                    bsz=args.batch_size, seed=args.seed, stratified=True
-                )
-        else:
-            trainloader, val_loader, testloader, _, N_CLASSES, SEQ_LENGTH, \
-                IN_DIM, _ = dataset_fns[args.dataset](
-                    bsz=args.batch_size, seed=args.seed
-                )
-        batch = next(iter(testloader))
-        batch_x, batch_y = prep_batch(batch, SEQ_LENGTH, IN_DIM)
-
-    # Print shapes for debugging
-    if args.dataset in ['imdb', 'listops', 'aan']:
-        print(batch_x[0].shape, batch_x[1].shape)
-        print(batch_x[0].dtype)
+        loader = PathDatasetLoader(args.dataset, dataset_fn)
     else:
-        print(batch_x.shape, batch_y.shape)
-        print(batch_x.dtype)
-    print(batch_y.dtype)
+        raise ValueError(f"No loader configured for dataset: {args.dataset}")
 
-    # Compute class weights if needed (only for listops)
-    class_weights = compute_class_weights(trainloader, N_CLASSES) \
-        if args.dataset == 'listops' else None
-
-    return DatasetInfo(
-        trainloader=trainloader,
-        val_loader=val_loader,
-        testloader=testloader,
-        n_classes=N_CLASSES,
-        seq_length=SEQ_LENGTH,
-        in_dim=IN_DIM,
-        class_weights=class_weights,
-        sample_batch=(batch_x, batch_y)
-    )
+    # Load and return dataset
+    return loader.load(args, dtype)
 
 
-def _build_model_config(args, dataset_info, hidden_dim, latent_dim):
+def _build_model_config(args, dataset_info: DatasetInfo,
+                            hidden_dim: tuple, latent_dim: tuple) -> Dict:
     """Build common model configuration dictionary.
 
     Args:
@@ -211,7 +213,8 @@ def _build_model_config(args, dataset_info, hidden_dim, latent_dim):
     return config
 
 
-def create_model(args, dataset_info, hidden_dim, latent_dim):
+def create_model(args, dataset_info: DatasetInfo,
+                    hidden_dim: tuple, latent_dim: tuple) -> Callable:
     """Configure and create model class.
 
     Args:
@@ -238,7 +241,8 @@ def create_model(args, dataset_info, hidden_dim, latent_dim):
     return model_cls
 
 
-def setup_training(key, model_cls, dataset_info, args, dtype):
+def setup_training(key: jax.random.PRNGKey, model_cls: Callable,
+                    dataset_info: DatasetInfo, args, dtype) -> TrainingState:
     """Create training state with optimizer and optional checkpoint loading.
 
     Args:
@@ -284,7 +288,8 @@ def setup_training(key, model_cls, dataset_info, args, dtype):
     )
 
 
-def setup_experiment_dirs(args, hidden_dim, latent_dim, seed, config_file):
+def setup_experiment_dirs(args, hidden_dim: tuple, latent_dim: tuple,
+                            seed: int, config_file: str) -> ExperimentDirs:
     """Generate experiment ID and create directory structure.
 
     Args:
@@ -320,7 +325,8 @@ def setup_experiment_dirs(args, hidden_dim, latent_dim, seed, config_file):
     )
 
 
-def tabulate_model(model_cls, sample_batch, key):
+def tabulate_model(model_cls: Callable, sample_batch: Tuple,
+                    key: jax.random.PRNGKey) -> None:
     """Print model architecture table.
 
     Args:
@@ -335,7 +341,7 @@ def tabulate_model(model_cls, sample_batch, key):
     print(tabulate_fn(batch_x))
 
 
-def print_dcls_parameters(state, dataset):
+def print_dcls_parameters(state, dataset: str) -> None:
     """Print DCLS layer parameters.
 
     Args:
@@ -355,9 +361,10 @@ def print_dcls_parameters(state, dataset):
     print(params['std'].dtype)
 
 
-def run_validation_for_dataset(state, model_cls, val_loader, testloader,
-                                dataset, seq_length, in_dim, n_classes,
-                                log_classification_report):
+def run_validation_for_dataset(state, model_cls: Callable, val_loader,
+                                testloader, dataset: str, seq_length: int,
+                                in_dim: int, n_classes: int,
+                                log_classification_report: bool) -> Tuple[float, float, Dict]:
     """Run validation on appropriate loader (imdb uses testloader as val).
 
     Args:
@@ -382,10 +389,149 @@ def run_validation_for_dataset(state, model_cls, val_loader, testloader,
     )
 
 
-def update_improvement_threshold(dataset, best_val_acc, current_improvement):
+@dataclass
+class ImprovementThresholds:
+    """Dynamic improvement thresholds based on validation accuracy.
+
+    These are ad-hoc empirical values that fit the training dynamics
+    of each dataset.
+    """
+    # Accuracy thresholds and corresponding improvement values
+    thresholds: list[tuple[float, float]]  # [(acc_threshold, improvement)]
+
+    def get_threshold(self, val_acc: float, current: float) -> float:
+        """Get improvement threshold based on validation accuracy.
+
+        Args:
+            val_acc: Current validation accuracy
+            current: Current improvement threshold
+
+        Returns:
+            Updated improvement threshold
+        """
+        for acc_threshold, improvement in self.thresholds:
+            if val_acc > acc_threshold:
+                return improvement
+        return current
+
+    @classmethod
+    def for_dataset(cls, dataset: str) -> 'ImprovementThresholds':
+        """Get dataset-specific improvement thresholds.
+
+        Args:
+            dataset: Dataset name
+
+        Returns:
+            ImprovementThresholds configured for the dataset
+        """
+        configs = {
+            'mnist': cls(thresholds=[(0.94, 0.001)]),
+            'cifar': cls(thresholds=[(0.80, 0.001), (0.70, 0.005)]),
+            'listops': cls(thresholds=[(0.55, 0.001), (0.50, 0.003)]),
+            'path': cls(thresholds=[(0.88, 0.002)]),
+            'pathx': cls(thresholds=[(0.93, 0.002), (0.88, 0.005)]),
+            'imdb': cls(thresholds=[(0.83, 0.001)]),
+            'aan': cls(thresholds=[(0.83, 0.001)]),
+            'gsc': cls(thresholds=[(0.83, 0.001)]),
+        }
+        return configs.get(dataset, cls(thresholds=[]))
+
+
+class DatasetLoader(ABC):
+    """Abstract base class defining the interface for dataset loaders."""
+    
+    @abstractmethod
+    def load(self, args, dtype):
+        """Load and prepare dataset. Must be implemented by subclasses."""
+        pass
+
+
+class AbstractDatasetLoader(DatasetLoader):
+    """Base class handling common initialization and DatasetInfo construction."""
+    
+    def __init__(self, dataset_name: str, dataset_fn):
+        self.dataset_name = dataset_name
+        self.dataset_fn = dataset_fn
+
+    def _build_info(self, train, val, test, n_classes, seq_length, in_dim, 
+                    batch_x, batch_y, class_weights=None):
+        """Helper to print debugging info and construct the DatasetInfo object."""
+        # Handle printing based on whether batch_x is a tuple/list (prep_batch output) or a single tensor
+        if isinstance(batch_x, (tuple, list)):
+            print(batch_x[0].shape, batch_x[1].shape)
+            print(batch_x[0].dtype)
+        else:
+            print(batch_x.shape, batch_y.shape)
+            print(batch_x.dtype)
+            
+        print(batch_y.dtype)
+
+        return DatasetInfo(
+            trainloader=train,
+            val_loader=val,
+            testloader=test,
+            n_classes=n_classes,
+            seq_length=seq_length,
+            in_dim=in_dim,
+            class_weights=class_weights,
+            sample_batch=(batch_x, batch_y)
+        )
+
+
+class MnistCifarGscDatasetLoader(AbstractDatasetLoader):
+    """Loader for base datasets (MNIST, CIFAR, GSC)."""
+
+    def load(self, args, dtype):
+        train, val, test, n_cls, seq_len, in_dim = self.dataset_fn(
+            bsz=args.batch_size, root="data", dtype=dtype
+        )
+        batch_x, batch_y = next(iter(test))
+        
+        return self._build_info(train, val, test, n_cls, seq_len, in_dim, 
+                                batch_x, batch_y)
+
+
+class TextDatasetLoader(AbstractDatasetLoader):
+    """Loader for text LRA datasets (IMDB, ListOps, AAN) that use prep_batch."""
+
+    def load(self, args, dtype):
+        train, val, test, _, n_cls, seq_len, in_dim, _ = self.dataset_fn(
+            batch_size=args.batch_size, seed=args.seed
+        )
+        batch_x, batch_y = prep_batch(next(iter(test)), seq_len, in_dim)
+        
+        weights = compute_class_weights(train, n_cls) if \
+            self.dataset_name == 'listops' else None
+        
+        return self._build_info(train, val, test, n_cls, seq_len, in_dim, 
+                                batch_x, batch_y, weights)
+
+
+class PathDatasetLoader(AbstractDatasetLoader):
+    """Loader for Path datasets (Path32, PathX) with stratified sampling support."""
+
+    def load(self, args, dtype):
+        # Use a kwargs dictionary to cleanly handle the conditional stratified flag
+        kwargs = {"bsz": args.batch_size, "seed": args.seed}
+        
+        if self.dataset_name == 'pathx' and \
+            getattr(args, 'stratified_sampling', False):
+            print("[*] Using STRATIFIED sampling for PathX (balanced batches)")
+            kwargs["stratified"] = True
+
+        train, val, test, _, n_cls, seq_len, in_dim, _ = \
+            self.dataset_fn(**kwargs)
+        batch_x, batch_y = prep_batch(next(iter(test)), seq_len, in_dim)
+
+        return self._build_info(train, val, test, n_cls, seq_len, in_dim, 
+                                batch_x, batch_y)
+
+
+def update_improvement_threshold(dataset: str, best_val_acc: float,
+                                    current_improvement: float) -> float:
     """Update improvement threshold based on dataset and current accuracy.
 
-    These are ad-hoc empirical values that fit the dynamics. 
+    These are ad-hoc empirical values that fit the dynamics.
 
     Args:
         dataset: Dataset name
@@ -395,37 +541,16 @@ def update_improvement_threshold(dataset, best_val_acc, current_improvement):
     Returns:
         Updated improvement threshold
     """
-    if dataset == 'mnist':
-        if best_val_acc > 0.94:
-            return 0.001  # 0.1%
-    elif dataset == 'cifar':
-        if 0.8 > best_val_acc > 0.70:
-            return 0.005  # 0.5%
-        elif best_val_acc >= 0.80:
-            return 0.001  # 0.1%
-    elif dataset == 'listops':
-        if best_val_acc > 0.55:
-            return 0.001  # 0.3%
-        elif best_val_acc > 0.50:
-            return 0.003  # 0.2%
-    elif dataset == 'path':
-        if best_val_acc > 0.88:
-            return 0.002  # 0.2%
-    elif dataset == 'pathx':
-        if best_val_acc > 0.93:
-            return 0.002  # 0.2%
-        elif best_val_acc > 0.88:
-            return 0.005  # 0.5%
-    elif dataset in ['imdb', 'aan', 'gsc']:
-        if best_val_acc > 0.83:
-            return 0.001  # 0.1%
-
-    return current_improvement
+    thresholds = ImprovementThresholds.for_dataset(dataset)
+    return thresholds.get_threshold(best_val_acc, current_improvement)
 
 
-def check_early_stopping(dataset, epoch, patience, val_acc, best_val_acc,
-                            val_loss, best_val_acc_loss, ovf_count, bad_count,
-                            lim_patience):
+def check_early_stopping(dataset: str, epoch: int, patience: int,
+                            val_acc: float, best_val_acc: float,
+                            val_loss: float, best_val_acc_loss: float,
+                            ovf_count: int, bad_count: int,
+                            lim_patience: int
+                        ) -> Tuple[bool, int, int, Optional[str]]:
     """Check if training should stop early.
 
     Args:
@@ -478,8 +603,9 @@ def check_early_stopping(dataset, epoch, patience, val_acc, best_val_acc,
     return (False, ovf_count, bad_count, None)
 
 
-def train_model(training_state, model_cls, dataset_info, experiment_dirs,
-                args, key):
+def train_model(training_state: TrainingState, model_cls: Callable,
+                dataset_info: DatasetInfo, experiment_dirs: ExperimentDirs,
+                args, key: jax.random.PRNGKey) -> TrainingResults:
     """Execute training loop with validation, checkpointing, and early stopping.
 
     Args:
@@ -534,24 +660,38 @@ def train_model(training_state, model_cls, dataset_info, experiment_dirs,
     for epoch in range(start_epoch, args.n_epochs):
         key, subkey = jax.random.split(key)
 
+        # Get dtype from args (default to float32)
+        dtype_str = getattr(args, 'dtype', 'float32')
+        dtype = jnp.float16 if dtype_str == 'float16' else jnp.float32
+
+        # Create epoch and wandb configs
+        epoch_config = EpochConfig(
+            lim_batch=None,
+            keys_to_track=keys_to_track,
+            inner_keys_to_track=inner_keys_to_track,
+            lr_fn=training_state.lr_fn,
+            grad_clip_norm=args.grad_clip_norm,
+            log_model_behavior=args.log_model_behavior,
+            epoch_num=epoch,
+            class_weights=dataset_info.class_weights,
+            dtype=dtype
+        )
+
+        wandb_config = WandBLogConfig(
+            log_gradients=getattr(args, 'wandb_gradients', False),
+            log_states=getattr(args, 'wandb_states', False),
+            log_matrices=getattr(args, 'wandb_matrices', False),
+            in_dim=dataset_info.in_dim,
+            seq_len=dataset_info.seq_length
+        )
+
         state, train_loss, train_acc, (break_flag, aux_dict_epoch) = \
             run_epoch(state, model_cls, dataset_info.trainloader, subkey,
-                        reg_factor=args.reg_factor,
-                        kernel_size=args.kernel_size,
-                        lim_batch=None,
-                        keys_to_track=keys_to_track,
-                        inner_keys_to_track=inner_keys_to_track,
-                        lr_fn=training_state.lr_fn,
-                        wandb_gradients=getattr(args, 'wandb_gradients', False),
-                        wandb_states=getattr(args, 'wandb_states', False),
-                        wandb_matrices=getattr(args, 'wandb_matrices', False),
-                        in_dim=dataset_info.in_dim,
-                        seq_len=dataset_info.seq_length,
-                        grad_clip_norm=args.grad_clip_norm,
-                        log_model_behavior=args.log_model_behavior,
-                        epoch_num=epoch,
-                        class_weights=dataset_info.class_weights,
-                        dataset=args.dataset)
+                      reg_factor=args.reg_factor,
+                      kernel_size=args.kernel_size,
+                      config=epoch_config,
+                      wandb_config=wandb_config,
+                      dataset=args.dataset)
         aux_dict_training.append(aux_dict_epoch)
 
         if break_flag:

@@ -8,8 +8,6 @@ import numpy as np
 from functools import partial
 from tqdm import tqdm
 
-from utils import prep_batch
-
 
 @partial(jax.jit, static_argnames=('model', 'out_dim', 'dtype'))
 def eval_model(state, model, images, labels, out_dim, dtype=jnp.float32):
@@ -73,6 +71,9 @@ def validate(state, model, testloader, seq_len, in_dim, out_dim,
         mean_accuracy: Average accuracy
         eval_metrics: Classification metrics dictionary
     """
+    # Import here to avoid circular import at module level
+    from utils import prep_batch
+
     # Compute average loss & accuracy
     model = model(training=False)  # needed when using dropout
     losses, accuracies = [], []

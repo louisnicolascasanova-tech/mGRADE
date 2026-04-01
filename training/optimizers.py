@@ -38,15 +38,26 @@ def create_learning_rate_fn(config, base_learning_rate, steps_per_epoch):
     return schedule_fn
 
 
-def create_learning_rate_map(args, steps_per_epoch):
+def create_learning_rate_schedule(args, steps_per_epoch):
     """
-    Create learning rate map with parameter-specific optimizers.
+    Create learning rate schedules.
 
-    Supports:
+    Handles both scheduled and constant learning rates, including:
+    - Base learning rate
+    - Large learning rate (5x base, for certain parameters)
     - Layer-specific learning rates (via lr_factors)
-    - Parameter-specific optimizers (bias, kernel, scale)
-    - DCLS-specific parameter control (weights, positions, std)
+
+    Args:
+        args: Configuration containing lr, lr_big, scheduler settings
+        steps_per_epoch: Number of training steps per epoch
+
+    Returns:
+        Tuple of (lr_fn, lr_big_fn, layer_lr_fns):
+            - lr_fn: Base learning rate (schedule or constant)
+            - lr_big_fn: Large learning rate (schedule or constant)
+            - layer_lr_fns: Dict mapping layer_idx to learning rate
     """
+    # Create base and large learning rate schedules
     if args.scheduler:
         lr_fn = create_learning_rate_fn(args, args.lr, steps_per_epoch)
         lr_big_fn = create_learning_rate_fn(args, args.lr * 5, steps_per_epoch)
@@ -66,9 +77,26 @@ def create_learning_rate_map(args, steps_per_epoch):
                 layer_lr_fns[layer_idx] = args.lr * factor
 
     print(lr_fn)
+    return lr_fn, lr_big_fn, layer_lr_fns
 
-    # Layer-type and parameter-specific rules
-    # Format: (layer_pattern, param_name) -> optimizer_type
+
+def create_parameter_rules(args):
+    """
+    Define parameter-specific optimizer rules.
+
+    Rules specify which optimizer to use for specific (layer_type, param_name)
+    combinations. Supports:
+    - DCLS-specific parameters (weights, positions, std) with train/freeze control
+    - Layer-specific bias optimization
+    - Layer-specific scale optimization (LayerNorm)
+    - Layer-specific kernel optimization
+
+    Args:
+        args: Configuration containing optimizer settings
+
+    Returns:
+        List of (layer_pattern, param_name, optimizer_type) tuples
+    """
     param_rules = []
 
     # DCLS-specific parameters (with train/freeze control)
@@ -130,6 +158,39 @@ def create_learning_rate_map(args, steps_per_epoch):
         ('Dense_Out', 'kernel', 'adamw'),
     ])
 
+    return param_rules
+
+
+def create_learning_rate_map(args, steps_per_epoch):
+    """
+    Create learning rate map with parameter-specific optimizers.
+
+    Combines learning rate schedules and parameter rules into an optimizer map
+    that can be used with optax.multi_transform.
+
+    Supports:
+    - Layer-specific learning rates (via lr_factors)
+    - Parameter-specific optimizers (bias, kernel, scale)
+    - DCLS-specific parameter control (weights, positions, std)
+
+    Args:
+        args: Configuration containing all optimizer settings
+        steps_per_epoch: Number of training steps per epoch
+
+    Returns:
+        Tuple of (lr_map, lr_fn):
+            - lr_map: Dict mapping optimizer names to optax transformations
+            - lr_fn: Base learning rate schedule
+    """
+    # Extract learning rate schedules
+    lr_fn, lr_big_fn, layer_lr_fns = create_learning_rate_schedule(
+        args, steps_per_epoch
+    )
+
+    # Extract parameter rules
+    param_rules = create_parameter_rules(args)
+
+    # Build optimizer map
     lr_map = {
         'none': {'tx': optax.set_to_zero()},
         'adam': {'tx': optax.adam(lr_fn)},
